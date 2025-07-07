@@ -8,6 +8,7 @@ Uma aplicação FastAPI completa com sistema RBAC (Role-Based Access Control) e 
 - ✅ **Provedores OAuth**: Google, Microsoft, GitHub
 - ✅ **Sistema RBAC**: Controle de acesso baseado em roles e permissões
 - ✅ **JWT Tokens**: Autenticação via tokens JWT
+- ✅ **Frontend Administrativo**: Interface Streamlit completa com dashboard
 - ✅ **SQLAlchemy ORM**: Integração com banco de dados SQLite
 - ✅ **FastAPI**: API moderna e documentação automática
 - ✅ **UV Package Manager**: Gerenciamento de dependências com UV
@@ -75,12 +76,36 @@ Isso criará:
 uv run task dev
 ```
 
-A aplicação estará disponível em: `http://localhost:8000`
+**Inicie o frontend administrativo (opcional)**:
+```bash
+# Em outro terminal
+uv run task front
+```
+
+URLs disponíveis:
+- **Backend API**: `http://localhost:8000`
+- **Frontend Admin**: `http://localhost:8501`
 
 ## 📚 Documentação da API
 
 - **Swagger UI**: `http://localhost:8000/docs`
 - **ReDoc**: `http://localhost:8000/redoc`
+
+## 🖥️ Frontend Administrativo
+
+O sistema inclui uma interface administrativa completa desenvolvida com Streamlit:
+
+### Funcionalidades
+- **Dashboard interativo** com métricas e gráficos
+- **Gerenciamento completo** de usuários, papéis e permissões
+- **Interface CRUD** intuitiva para todas as entidades
+- **Controle de acesso** baseado em permissões
+- **Visualizações em tempo real** do sistema
+
+### Acesso
+- **URL**: `http://localhost:8501`
+- **Credenciais**: admin / admin123
+- **Documentação**: Ver [README_FRONTEND.md](./README_FRONTEND.md)
 
 ## 🔐 Endpoints Principais
 
@@ -197,8 +222,11 @@ curl -X POST "http://localhost:8000/auth/login" \
 ## 🛠️ Comandos Úteis
 
 ```bash
-# Executar aplicação em desenvolvimento
+# Executar backend FastAPI
 uv run task dev
+
+# Executar frontend Streamlit
+uv run task front
 
 # Inicializar banco de dados
 uv run task init-db
@@ -211,23 +239,34 @@ uv run task format
 
 # Verificar código
 uv run task lint
+
+# Limpar e recriar banco
+uv run task clean
 ```
 
 ## 📁 Estrutura do Projeto
 
 ```
 fast-rbac/
-├── app/
-│   ├── auth/           # Módulos de autenticação
-│   ├── config/         # Configurações
-│   ├── database/       # Configuração do banco
-│   ├── middleware/     # Middleware RBAC
-│   ├── models/         # Modelos e schemas
-│   ├── routes/         # Rotas da API
-│   └── main.py         # Aplicação principal
-├── pyproject.toml      # Configuração UV
-├── env.example         # Exemplo de variáveis
-└── README.md
+├── app/                    # Backend FastAPI
+│   ├── auth/              # Módulos de autenticação
+│   ├── config/            # Configurações
+│   ├── database/          # Configuração do banco
+│   ├── middleware/        # Middleware RBAC
+│   ├── models/            # Modelos e schemas
+│   ├── routes/            # Rotas da API
+│   └── main.py            # Aplicação principal
+├── front/                  # Frontend Streamlit
+│   ├── components/        # Componentes UI
+│   ├── config/            # Configurações frontend
+│   ├── pages/             # Páginas da aplicação
+│   ├── services/          # Serviços e API client
+│   ├── utils/             # Utilitários
+│   └── streamlit_app.py   # Aplicação Streamlit
+├── pyproject.toml         # Configuração UV
+├── env.example            # Exemplo de variáveis
+├── README.md              # Documentação principal
+└── README_FRONTEND.md     # Documentação do frontend
 ```
 
 ## 🔍 Testando Permissões

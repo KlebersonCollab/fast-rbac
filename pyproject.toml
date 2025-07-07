@@ -29,6 +29,9 @@ dependencies = [
     "pydantic-settings>=2.1.0",
     "taskipy>=1.12.0",
     "itsdangerous>=2.1.2",
+    "streamlit>=1.28.0",
+    "plotly>=5.17.0",
+    "pandas>=2.1.0",
 ]
 
 [project.optional-dependencies]
@@ -53,6 +56,7 @@ dev-dependencies = [
 
 [tool.taskipy.tasks]
 dev = "uv run uvicorn app.main:app --reload"
+front = "uv run streamlit run front/streamlit_app.py"
 init-db = "uv run python app/database/init_data.py"
 test = "uv run pytest"
 format = "uv run black . && uv run isort ."
