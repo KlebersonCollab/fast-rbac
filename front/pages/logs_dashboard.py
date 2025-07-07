@@ -14,7 +14,7 @@ def show_logs_dashboard():
     """Exibe dashboard de logs em tempo real"""
     
     # Verificação de permissão
-    if not auth_service.has_permission("logs.view"):
+    if not auth_service.has_permission("logs:view"):
         st.error("🚫 Você não tem permissão para visualizar os logs do sistema.")
         return
     
