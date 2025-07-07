@@ -17,8 +17,11 @@ authors = [
 dependencies = [
     "fastapi>=0.104.1",
     "uvicorn[standard]>=0.24.0",
+    "gunicorn>=21.2.0",
     "sqlalchemy>=2.0.23",
     "alembic>=1.12.1",
+    "psycopg2-binary>=2.9.7",
+    "redis>=5.0.1",
     "authlib>=1.2.1",
     "passlib[bcrypt]>=1.7.4",
     "python-jose[cryptography]>=3.3.0",
@@ -32,6 +35,10 @@ dependencies = [
     "streamlit>=1.28.0",
     "plotly>=5.17.0",
     "pandas>=2.1.0",
+    "email-validator>=2.1.0",
+    "slowapi>=0.1.9",
+    "python-slugify>=8.0.1",
+    "prometheus-client>=0.19.0",
 ]
 
 [project.optional-dependencies]
@@ -62,6 +69,12 @@ test = "uv run pytest"
 format = "uv run black . && uv run isort ."
 lint = "uv run flake8 . && uv run mypy ."
 clean = "rm app.db && uv run task init-db"
+prod = "uv run gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker"
+docker-build = "docker build -t fast-rbac:latest ."
+docker-dev = "docker-compose -f docker-compose.dev.yml up --build"
+docker-prod = "docker-compose -f docker-compose.prod.yml up -d --build"
+migrate = "uv run alembic upgrade head"
+create-migration = "uv run alembic revision --autogenerate -m"
 
 [tool.black]
 line-length = 88

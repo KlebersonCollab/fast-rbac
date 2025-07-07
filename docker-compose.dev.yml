@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: rbac-postgres-dev
+    environment:
+      POSTGRES_DB: rbac_dev
+      POSTGRES_USER: rbac_user
+      POSTGRES_PASSWORD: rbac_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rbac_user -d rbac_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rbac-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: rbac-redis-dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data_dev:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rbac-network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rbac-backend-dev
+    environment:
+      - ENVIRONMENT=development
+      - DATABASE_URL=postgresql://rbac_user:rbac_password@postgres:5432/rbac_dev
+      - REDIS_URL=redis://redis:6379/0
+      - REDIS_ENABLED=true
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - DEBUG=true
+      - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8501
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - rbac-network
+
+  # Streamlit Frontend
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: rbac-frontend-dev
+    environment:
+      - API_BASE_URL=http://backend:8000
+    ports:
+      - "8501:8501"
+    volumes:
+      - .:/app
+    depends_on:
+      - backend
+    command: uv run streamlit run front/streamlit_app.py --server.port 8501 --server.address 0.0.0.0
+    networks:
+      - rbac-network
+
+volumes:
+  postgres_data_dev:
+  redis_data_dev:
+
+networks:
+  rbac-network:
+    driver: bridge 
