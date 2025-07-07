@@ -8,14 +8,66 @@ import json
 from typing import Dict, List, Any
 from front.services.logs_analyzer import LogAnalyzer
 from front.services.auth_service import auth_service
+import time
 
 
 def show_logs_dashboard():
     """Exibe dashboard de logs em tempo real"""
     
+    # DEBUG: Informações detalhadas sobre o usuário e permissões
+    st.write("### 🔍 DEBUG - Informações de Permissão")
+    
+    user = auth_service.get_current_user()
+    st.write(f"**Usuário:** {user.get('username') if user else 'None'}")
+    st.write(f"**Autenticado:** {auth_service.is_authenticated()}")
+    
+    if user:
+        st.write(f"**Superuser:** {user.get('is_superuser', False)}")
+        st.write(f"**Roles:** {[role.get('name') for role in user.get('roles', [])]}")
+        
+        # Lista todas as permissões do usuário
+        all_permissions = []
+        for role in user.get('roles', []):
+            for perm in role.get('permissions', []):
+                all_permissions.append(perm.get('name'))
+        
+        st.write(f"**Total de permissões:** {len(all_permissions)}")
+        st.write(f"**Tem logs:view:** {'logs:view' in all_permissions}")
+        
+        # Cache info
+        cache_info = auth_service.get_permissions_cache_info()
+        st.write(f"**Cache ativo:** {cache_info['cached']}")
+        st.write(f"**Cache expirado:** {cache_info['is_expired']}")
+        
+        # Teste direto da verificação
+        has_permission_result = auth_service.has_permission("logs:view")
+        st.write(f"**has_permission('logs:view'):** {has_permission_result}")
+    
+    st.markdown("---")
+    
     # Verificação de permissão
     if not auth_service.has_permission("logs:view"):
         st.error("🚫 Você não tem permissão para visualizar os logs do sistema.")
+        
+        # Adiciona botão de reload na própria página de erro
+        if st.button("🔧 Tentar Recarregar Permissões"):
+            with st.spinner("Recarregando permissões..."):
+                try:
+                    from front.services.api_client import api_client
+                    user_data = api_client.get_current_user()
+                    
+                    if user_data:
+                        st.session_state["user"] = user_data
+                        auth_service.invalidate_permissions_cache()
+                        auth_service.refresh_user_permissions(force=True)
+                        st.success("✅ Permissões recarregadas! Clique novamente em Logs Monitor.")
+                        time.sleep(2)
+                        st.rerun()
+                    else:
+                        st.error("❌ Erro ao recarregar dados do backend")
+                except Exception as e:
+                    st.error(f"❌ Erro: {str(e)}")
+        
         return
     
     st.title("📊 Dashboard de Logs em Tempo Real")
@@ -48,7 +100,6 @@ def show_logs_dashboard():
         auto_refresh = st.checkbox("🔄 Auto-refresh (30s)", value=True)
         
         if auto_refresh:
-            import time
             if 'last_refresh' not in st.session_state:
                 st.session_state.last_refresh = time.time()
             
