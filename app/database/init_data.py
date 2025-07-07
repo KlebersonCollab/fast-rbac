@@ -37,6 +37,11 @@ def init_permissions(db: Session):
         
         # Logs permissions
         {"name": "logs:view", "description": "View system logs", "resource": "logs", "action": "view"},
+        
+        # Superadmin permissions
+        {"name": "superadmin:manage", "description": "Manage superadmin privileges", "resource": "superadmin", "action": "manage"},
+        {"name": "users:superadmin", "description": "Manage user superadmin status", "resource": "users", "action": "superadmin"},
+        {"name": "system:admin", "description": "System administration access", "resource": "system", "action": "admin"},
     ]
     
     for perm_data in permissions:
@@ -51,6 +56,19 @@ def init_permissions(db: Session):
 def init_roles(db: Session):
     """Create default roles"""
     roles_data = [
+        {
+            "name": "superadmin",
+            "description": "Super Administrator with ultimate access",
+            "permissions": [
+                "users:create", "users:read", "users:update", "users:delete", "users:superadmin",
+                "roles:create", "roles:read", "roles:update", "roles:delete",
+                "permissions:create", "permissions:read", "permissions:update", "permissions:delete",
+                "posts:create", "posts:read", "posts:update", "posts:delete",
+                "settings:read", "settings:update",
+                "logs:view",
+                "superadmin:manage", "system:admin"
+            ]
+        },
         {
             "name": "admin",
             "description": "Administrator with full access",
@@ -128,11 +146,16 @@ def init_admin_user(db: Session):
         db.commit()
         db.refresh(admin_user)
         
-        # Assign admin role
+        # Assign admin and superadmin roles
         admin_role = db.query(Role).filter(Role.name == "admin").first()
+        superadmin_role = db.query(Role).filter(Role.name == "superadmin").first()
+        
         if admin_role:
             admin_user.roles.append(admin_role)
-            db.commit()
+        if superadmin_role:
+            admin_user.roles.append(superadmin_role)
+            
+        db.commit()
 
 
 def initialize_database():

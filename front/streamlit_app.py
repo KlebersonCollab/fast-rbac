@@ -10,13 +10,13 @@ from front.config.logging import (
 from front.utils.helpers import init_session_state, check_session_timeout
 from front.services.auth_service import auth_service
 from front.components.sidebar import render_sidebar, get_current_page
-from front.pages.login import render_login
-from front.pages.dashboard import render_dashboard
-from front.pages.users import render_users_page
-from front.pages.roles import render_roles_page
-from front.pages.permissions import render_permissions_page
-from front.pages.logs_dashboard import show_logs_dashboard
-from front.pages.examples import render_posts_page, render_settings_page
+from front.views.login import render_login
+from front.views.dashboard import render_dashboard
+from front.views.users import render_users_page
+from front.views.roles import render_roles_page
+from front.views.permissions import render_permissions_page
+from front.views.logs_dashboard import show_logs_dashboard
+from front.views.examples import render_posts_page, render_settings_page
 
 def configure_page():
     """Configure Streamlit page"""

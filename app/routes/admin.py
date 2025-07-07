@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from app.database.base import get_db
-from app.auth.dependencies import get_current_superuser, require_permission, require_role
+from app.auth.dependencies import get_current_superuser, require_permission, require_role, require_superadmin, require_superadmin_or_admin
 from app.models.user import User, Role, Permission
 from app.models.schemas import (
     User as UserSchema, Role as RoleSchema, Permission as PermissionSchema,
@@ -41,9 +41,9 @@ async def assign_role_to_user(
     user_id: int,
     role_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("users:update"))
+    current_user: User = Depends(require_superadmin_or_admin())
 ):
-    """Assign role to user (requires users:update permission)"""
+    """Assign role to user (requires superadmin or admin privileges)"""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -51,6 +51,20 @@ async def assign_role_to_user(
     role = db.query(Role).filter(Role.id == role_id).first()
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")
+    
+    # Proteção especial: apenas superadmin pode atribuir role superadmin
+    if role.name == "superadmin" and not (current_user.is_superuser or current_user.has_role("superadmin")):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only superadmin can assign superadmin role"
+        )
+    
+    # Proteção: admin não pode alterar roles de superadmin
+    if user.has_role("superadmin") and not (current_user.is_superuser or current_user.has_role("superadmin")):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot modify superadmin user roles"
+        )
     
     if role not in user.roles:
         user.roles.append(role)
@@ -64,9 +78,9 @@ async def remove_role_from_user(
     user_id: int,
     role_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("users:update"))
+    current_user: User = Depends(require_superadmin_or_admin())
 ):
-    """Remove role from user (requires users:update permission)"""
+    """Remove role from user (requires superadmin or admin privileges)"""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -74,6 +88,20 @@ async def remove_role_from_user(
     role = db.query(Role).filter(Role.id == role_id).first()
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")
+    
+    # Proteção especial: apenas superadmin pode remover role superadmin
+    if role.name == "superadmin" and not (current_user.is_superuser or current_user.has_role("superadmin")):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only superadmin can remove superadmin role"
+        )
+    
+    # Proteção: admin não pode alterar roles de superadmin
+    if user.has_role("superadmin") and not (current_user.is_superuser or current_user.has_role("superadmin")):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot modify superadmin user roles"
+        )
     
     if role in user.roles:
         user.roles.remove(role)
@@ -136,12 +164,27 @@ async def update_role(
 async def delete_role(
     role_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("roles:delete"))
+    current_user: User = Depends(require_superadmin())
 ):
-    """Delete role (requires roles:delete permission)"""
+    """Delete role (requires superadmin privileges)"""
     role = db.query(Role).filter(Role.id == role_id).first()
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")
+    
+    # Proteção: não pode deletar role superadmin
+    if role.name == "superadmin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot delete superadmin role"
+        )
+    
+    # Proteção: não pode deletar roles críticos
+    critical_roles = ["admin", "superadmin"]
+    if role.name in critical_roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Cannot delete critical role '{role.name}'"
+        )
     
     db.delete(role)
     db.commit()
@@ -222,4 +265,73 @@ async def remove_permission_from_role(
         role.permissions.remove(permission)
         db.commit()
     
-    return {"message": f"Permission '{permission.name}' removed from role '{role.name}'"} 
+    return {"message": f"Permission '{permission.name}' removed from role '{role.name}'"}
+
+
+# Superadmin management endpoints
+@router.post("/users/{user_id}/superadmin")
+async def promote_to_superadmin(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superadmin())
+):
+    """Promote user to superadmin (requires superadmin privileges)"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Verificar se já é superuser
+    if user.is_superuser:
+        raise HTTPException(status_code=400, detail="User is already a superuser")
+    
+    # Verificar se já tem role superadmin
+    if user.has_role("superadmin"):
+        raise HTTPException(status_code=400, detail="User already has superadmin role")
+    
+    # Adicionar role superadmin
+    superadmin_role = db.query(Role).filter(Role.name == "superadmin").first()
+    if not superadmin_role:
+        raise HTTPException(status_code=500, detail="Superadmin role not found")
+    
+    user.roles.append(superadmin_role)
+    user.is_superuser = True  # Também marcar como superuser
+    db.commit()
+    
+    return {"message": f"User '{user.username}' promoted to superadmin"}
+
+
+@router.delete("/users/{user_id}/superadmin")
+async def revoke_superadmin(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superadmin())
+):
+    """Revoke superadmin privileges (requires superadmin privileges)"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Não pode remover de si mesmo se for o último superadmin
+    if user.id == current_user.id:
+        superadmin_count = db.query(User).filter(
+            (User.is_superuser == True) | 
+            (User.id.in_(
+                db.query(User.id).join(User.roles).filter(Role.name == "superadmin")
+            ))
+        ).count()
+        
+        if superadmin_count <= 1:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot revoke superadmin from yourself - you are the last superadmin"
+            )
+    
+    # Remover role superadmin
+    superadmin_role = db.query(Role).filter(Role.name == "superadmin").first()
+    if superadmin_role and superadmin_role in user.roles:
+        user.roles.remove(superadmin_role)
+    
+    user.is_superuser = False  # Também remover flag superuser
+    db.commit()
+    
+    return {"message": f"Superadmin privileges revoked from user '{user.username}'"} 

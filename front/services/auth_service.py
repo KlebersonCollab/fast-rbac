@@ -13,75 +13,112 @@ from front.config.logging import (
 class AuthService:
     # Cache TTL para permissões (em segundos)
     PERMISSIONS_CACHE_TTL = 300  # 5 minutos
+    # Cache TTL para validação de token (em segundos)
+    TOKEN_VALIDATION_CACHE_TTL = 60  # 1 minuto
     
     @staticmethod
     def login(username: str, password: str) -> bool:
-        """Login user and store session data"""
+        """Login user with username and password"""
         try:
-            # Log login attempt
-            log_user_action("login_attempt", page="login", success=False, 
-                          resource="authentication", details={"username": username})
-            
-            # Call API login
             response = api_client.login(username, password)
             
-            if response and "access_token" in response:
-                # Store token in session
-                st.session_state.token = response["access_token"]
-                
-                # Get user profile
-                user_data = api_client.get_current_user()
-                st.session_state.user = user_data
-                st.session_state.authenticated = True
-                # Mark permissions cache timestamp
-                st.session_state.permissions_cached_at = time.time()
-                
-                # Log successful login
-                log_user_action("login", page="login", success=True, 
-                              resource="authentication", 
-                              details={
-                                  "username": username,
-                                  "roles_count": len(user_data.get("roles", [])),
-                                  "user_id": user_data.get("id")
-                              })
-                
-                return True
-            else:
-                # Log failed login
-                log_user_action("login_failed", page="login", success=False, 
-                              resource="authentication", 
-                              details={"username": username, "reason": "invalid_credentials"})
-                return False
-                
+            # Store authentication state
+            st.session_state.authenticated = True
+            st.session_state.token = response.get('access_token')
+            st.session_state.user = response.get('user')
+            st.session_state.token_valid = True
+            
+            # Initialize cache timestamps
+            st.session_state.permissions_cached_at = time.time()
+            st.session_state.token_validated_at = time.time()  # Token just validated during login
+            
+            # Log successful login
+            log_user_action(
+                username, 
+                "login", 
+                "login", 
+                "authentication",
+                {"login_type": "basic"}
+            )
+            
+            return True
+            
         except APIException as e:
+            # Log failed login attempt
+            log_user_action(
+                username, 
+                "login_attempt", 
+                "login", 
+                "authentication",
+                {"error": str(e)},
+                level="WARNING"
+            )
+            
             st.error(f"Erro no login: {e.message}")
-            log_user_action("login_error", page="login", success=False, 
-                          resource="authentication", 
-                          details={"username": username, "error": e.message})
+            return False
+        except Exception as e:
+            # Log failed login attempt
+            log_user_action(
+                username, 
+                "login_attempt", 
+                "login", 
+                "authentication",
+                {"error": str(e)},
+                level="WARNING"
+            )
+            
+            st.error(f"Erro inesperado: {str(e)}")
+            return False
+    
+    @staticmethod
+    def oauth_login(provider: str, token: str) -> bool:
+        """Login user with OAuth provider"""
+        try:
+            response = api_client.oauth_login(provider, token)
+            
+            # Store authentication state
+            st.session_state.authenticated = True
+            st.session_state.token = response.get('access_token')
+            st.session_state.user = response.get('user')
+            st.session_state.token_valid = True
+            
+            # Initialize cache timestamps
+            st.session_state.permissions_cached_at = time.time()
+            st.session_state.token_validated_at = time.time()  # Token just validated during login
+            
+            return True
+            
+        except APIException as e:
+            st.error(f"Erro no login OAuth: {e.message}")
             return False
         except Exception as e:
             st.error(f"Erro inesperado: {str(e)}")
-            log_frontend_error(e, "login_process", page="login")
             return False
     
     @staticmethod
     def logout():
-        """Logout user and clear session"""
-        # Log logout action before clearing session
-        user = AuthService.get_current_user()
-        username = user.get("username") if user else "unknown"
-        user_id = user.get("id") if user else None
+        """Logout current user"""
+        username = st.session_state.get('user', {}).get('username', 'unknown')
         
-        log_user_action("logout", page="auth", success=True, 
-                      resource="authentication", 
-                      details={"username": username, "user_id": user_id})
+        # Log logout action
+        log_user_action(
+            username, 
+            "logout", 
+            "auth", 
+            "authentication"
+        )
         
-        clear_session()
+        # Clear authentication state
         st.session_state.authenticated = False
-        st.session_state.user = None
         st.session_state.token = None
-        st.success("Logout realizado com sucesso!")
-        st.rerun()
+        st.session_state.user = None
+        st.session_state.token_valid = False
+        
+        # Clear cache timestamps
+        if hasattr(st.session_state, 'permissions_cached_at'):
+            del st.session_state.permissions_cached_at
+        if hasattr(st.session_state, 'token_validated_at'):
+            del st.session_state.token_validated_at
     
     @staticmethod
     def register(username: str, email: str, password: str, full_name: str = None) -> bool:
@@ -89,12 +126,12 @@ class AuthService:
         try:
             response = api_client.register(username, email, password, full_name)
             
+            # Optionally auto-login after registration
             if response:
-                st.success("Usuário registrado com sucesso! Faça login para continuar.")
-                return True
-            else:
-                return False
-                
+                return AuthService.login(username, password)
+            
+            return True
+            
         except APIException as e:
             st.error(f"Erro no registro: {e.message}")
             return False
@@ -103,8 +140,18 @@ class AuthService:
             return False
     
     @staticmethod
+    def _is_token_validation_cached() -> bool:
+        """Check if token validation is still cached and valid"""
+        if not hasattr(st.session_state, 'token_validated_at'):
+            return False
+        
+        cache_time = st.session_state.token_validated_at
+        current_time = time.time()
+        return (current_time - cache_time) <= AuthService.TOKEN_VALIDATION_CACHE_TTL
+    
+    @staticmethod
     def is_authenticated() -> bool:
-        """Check if user is authenticated"""
+        """Check if user is authenticated (with token cache)"""
         if not hasattr(st.session_state, 'authenticated'):
             return False
         
@@ -114,9 +161,15 @@ class AuthService:
         if not st.session_state.token:
             return False
         
-        # Test token validity
+        # Check if token was recently validated (cache)
+        if AuthService._is_token_validation_cached():
+            return True
+        
+        # Test token validity only if cache expired
         try:
             api_client.test_token()
+            # Update token validation cache
+            st.session_state.token_validated_at = time.time()
             return True
         except APIException:
             # Token is invalid, clear session
@@ -127,9 +180,26 @@ class AuthService:
     
     @staticmethod
     def get_current_user() -> Optional[Dict[str, Any]]:
-        """Get current user data"""
-        if AuthService.is_authenticated():
-            return st.session_state.user
+        """Get current user data (with auto-reload if missing)"""
+        if not AuthService.is_authenticated():
+            return None
+        
+        # Se user está em cache, retorna
+        user = st.session_state.get('user')
+        if user:
+            return user
+        
+        # Se autenticado mas user é None, tenta recarregar do backend
+        try:
+            user_data = api_client.get_current_user()
+            if user_data:
+                st.session_state.user = user_data
+                st.session_state.permissions_cached_at = time.time()
+                return user_data
+        except Exception:
+            # Se falhar recarregar, logout para evitar estado inconsistente
+            AuthService.logout()
+        
         return None
     
     @staticmethod
@@ -165,29 +235,38 @@ class AuthService:
     @staticmethod
     def has_permission(permission: str) -> bool:
         """Check if current user has specific permission (with auto-refresh)"""
-        user = AuthService.get_current_user()
+        # Single authentication check instead of multiple calls
+        if not AuthService.is_authenticated():
+            log_permission_check(permission, granted=False, page="unknown", 
+                               reason="not_authenticated")
+            return False
+        
+        # Get user once and reuse
+        user = st.session_state.user
         if not user:
             log_permission_check(permission, granted=False, page="unknown", 
                                reason="no_user")
             return False
         
-        # Check if user is superuser
+        # Check if user is superuser (fast path)
         if user.get("is_superuser", False):
             log_permission_check(permission, granted=True, page="unknown", 
                                reason="superuser")
             return True
         
-        # Try to refresh permissions if cache is expired
-        AuthService.refresh_user_permissions()
+        # Try to refresh permissions if cache is expired (but don't call get_current_user again)
+        if AuthService._is_permissions_cache_expired():
+            try:
+                user_data = api_client.get_current_user()
+                if user_data:
+                    st.session_state.user = user_data
+                    st.session_state.permissions_cached_at = time.time()
+                    user = user_data  # Use fresh data for this check
+            except Exception:
+                # If refresh fails, use cached data
+                pass
         
-        # Get updated user data
-        user = AuthService.get_current_user()
-        if not user:
-            log_permission_check(permission, granted=False, page="unknown", 
-                               reason="user_lost_after_refresh")
-            return False
-        
-        # Check roles and permissions
+        # Check roles and permissions using the user data we have
         roles = user.get("roles", [])
         for role in roles:
             permissions = role.get("permissions", [])
@@ -200,6 +279,50 @@ class AuthService:
         log_permission_check(permission, granted=False, page="unknown", 
                            reason="permission_not_found")
         return False
+    
+    @staticmethod
+    def has_permission_force_refresh(permission: str) -> bool:
+        """Check permission with forced refresh from backend (more reliable)"""
+        try:
+            # Sempre força um refresh do backend
+            from front.services.api_client import api_client
+            
+            # Busca dados frescos do backend
+            user_data = api_client.get_current_user()
+            if not user_data:
+                log_permission_check(permission, granted=False, page="unknown", 
+                                   reason="no_user_from_backend")
+                return False
+            
+            # Atualiza session state com dados frescos
+            st.session_state["user"] = user_data
+            st.session_state.permissions_cached_at = time.time()
+            
+            # Check if user is superuser
+            if user_data.get("is_superuser", False):
+                log_permission_check(permission, granted=True, page="unknown", 
+                                   reason="superuser_fresh")
+                return True
+            
+            # Check roles and permissions from fresh data
+            roles = user_data.get("roles", [])
+            for role in roles:
+                permissions = role.get("permissions", [])
+                for perm in permissions:
+                    if perm.get("name") == permission:
+                        log_permission_check(permission, granted=True, page="unknown", 
+                                           role=role.get("name"), method="force_refresh")
+                        return True
+            
+            log_permission_check(permission, granted=False, page="unknown", 
+                               reason="permission_not_found_fresh")
+            return False
+            
+        except Exception as e:
+            # Se falhar, tentar método normal
+            log_permission_check(permission, granted=False, page="unknown", 
+                               reason=f"force_refresh_error_{str(e)}")
+            return AuthService.has_permission_cached(permission)
     
     @staticmethod
     def has_permission_cached(permission: str) -> bool:

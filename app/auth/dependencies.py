@@ -72,4 +72,31 @@ def require_role(role_name: str):
                 detail=f"Role '{role_name}' required"
             )
         return current_user
-    return role_checker 
+    return role_checker
+
+
+def require_superadmin():
+    """Decorator to require superadmin role"""
+    def superadmin_checker(current_user: User = Depends(get_current_active_user)) -> User:
+        # Verificar se é superuser OU tem role superadmin
+        if not (current_user.is_superuser or current_user.has_role("superadmin")):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Superadmin privileges required"
+            )
+        return current_user
+    return superadmin_checker
+
+
+def require_superadmin_or_admin():
+    """Decorator to require superadmin or admin role"""
+    def admin_checker(current_user: User = Depends(get_current_active_user)) -> User:
+        if not (current_user.is_superuser or 
+                current_user.has_role("superadmin") or 
+                current_user.has_role("admin")):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin or superadmin privileges required"
+            )
+        return current_user
+    return admin_checker 

@@ -2,6 +2,36 @@ import streamlit as st
 import time
 from front.services.auth_service import auth_service
 
+def _get_sidebar_permissions():
+    """Get permissions needed for sidebar navigation with caching"""
+    # Use a simple cache key based on user ID and cache timestamp
+    user = auth_service.get_current_user()
+    if not user:
+        return {}
+    
+    cache_key = f"sidebar_perms_{user.get('id', 'unknown')}"
+    cache_timestamp_key = f"{cache_key}_timestamp"
+    
+    # Check if we have cached permissions and they're not expired (30 seconds cache)
+    if (hasattr(st.session_state, cache_timestamp_key) and 
+        time.time() - st.session_state[cache_timestamp_key] < 30 and
+        hasattr(st.session_state, cache_key)):
+        return st.session_state[cache_key]
+    
+    # Batch check all permissions at once
+    permissions = {
+        "users_read": auth_service.has_permission_cached("users:read"),
+        "roles_read": auth_service.has_permission_cached("roles:read"),
+        "permissions_read": auth_service.has_permission_cached("permissions:read"),
+        "logs_view": auth_service.has_permission_cached("logs:view")
+    }
+    
+    # Cache the results
+    st.session_state[cache_key] = permissions
+    st.session_state[cache_timestamp_key] = time.time()
+    
+    return permissions
+
 def render_sidebar():
     """Render navigation sidebar"""
     with st.sidebar:
@@ -15,6 +45,18 @@ def render_sidebar():
         
         user = auth_service.get_current_user()
         
+        # Proteção contra user None
+        if not user:
+            st.error("❌ Erro: Dados do usuário não encontrados")
+            if st.button("🔄 Tentar Recarregar", use_container_width=True):
+                st.rerun()
+            if st.button("🚪 Logout e Login Novamente", use_container_width=True):
+                auth_service.logout()
+            return
+        
+        # Get cached permissions for sidebar
+        perms = _get_sidebar_permissions()
+        
         # Navigation menu
         st.markdown("### 📋 Navegação")
         
@@ -24,25 +66,25 @@ def render_sidebar():
             st.rerun()
         
         # Users management (requires users:read permission)
-        if auth_service.has_permission("users:read"):
+        if perms.get("users_read", False):
             if st.button("👥 Usuários", use_container_width=True):
                 st.session_state.page = "Users"
                 st.rerun()
         
         # Roles management (requires roles:read permission)
-        if auth_service.has_permission("roles:read"):
+        if perms.get("roles_read", False):
             if st.button("🎭 Papéis", use_container_width=True):
                 st.session_state.page = "Roles"
                 st.rerun()
         
         # Permissions management (requires permissions:read permission)
-        if auth_service.has_permission("permissions:read"):
+        if perms.get("permissions_read", False):
             if st.button("🔐 Permissões", use_container_width=True):
                 st.session_state.page = "Permissions"
                 st.rerun()
         
         # Logs dashboard (requires logs:view permission)
-        if auth_service.has_permission("logs:view"):
+        if perms.get("logs_view", False):
             if st.button("📊 Logs Monitor", use_container_width=True):
                 st.session_state.page = "Logs"
                 st.rerun()
