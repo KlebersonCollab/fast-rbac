@@ -1,5 +1,12 @@
 import streamlit as st
 from front.config.settings import settings
+from front.config.logging import (
+    setup_frontend_logging, 
+    log_user_action, 
+    log_frontend_error,
+    get_frontend_logger,
+    log_ui_interaction
+)
 from front.utils.helpers import init_session_state, check_session_timeout
 from front.services.auth_service import auth_service
 from front.components.sidebar import render_sidebar, get_current_page
@@ -110,46 +117,72 @@ def configure_page():
 
 def handle_authentication():
     """Handle user authentication flow"""
-    # Initialize session state
-    init_session_state()
-    
-    # Check session timeout
-    if auth_service.is_authenticated() and check_session_timeout():
-        st.warning("Sua sessão expirou. Faça login novamente.")
-        auth_service.logout()
+    try:
+        # Initialize session state
+        init_session_state()
+        
+        # Check session timeout
+        if auth_service.is_authenticated() and check_session_timeout():
+            st.warning("Sua sessão expirou. Faça login novamente.")
+            log_user_action("session_timeout", page="auth", success=False, 
+                          reason="session_expired")
+            auth_service.logout()
+            return False
+        
+        # Check if user is authenticated
+        if not auth_service.is_authenticated():
+            log_ui_interaction("auth_page", "display", page="login")
+            render_login()
+            return False
+        
+        return True
+        
+    except Exception as e:
+        log_frontend_error(e, "authentication_flow", page="auth")
+        st.error("Erro no sistema de autenticação")
         return False
-    
-    # Check if user is authenticated
-    if not auth_service.is_authenticated():
-        render_login()
-        return False
-    
-    return True
 
 def render_main_app():
     """Render main application"""
-    # Render sidebar
-    render_sidebar()
-    
-    # Get current page
-    current_page = get_current_page()
-    
-    # Route to appropriate page
-    if current_page == "Dashboard":
-        render_dashboard()
-    elif current_page == "Users":
-        render_users_page()
-    elif current_page == "Roles":
-        render_roles_page()
-    elif current_page == "Permissions":
-        render_permissions_page()
-    elif current_page == "Posts":
-        render_posts_page()
-    elif current_page == "Settings":
-        render_settings_page()
-    else:
-        # Default to dashboard
-        render_dashboard()
+    try:
+        # Render sidebar
+        render_sidebar()
+        
+        # Get current page
+        current_page = get_current_page()
+        
+        # Log page navigation
+        log_user_action("page_navigation", page=current_page.lower(), 
+                       success=True, resource="page_access")
+        
+        # Route to appropriate page
+        if current_page == "Dashboard":
+            log_ui_interaction("page", "render", page="dashboard")
+            render_dashboard()
+        elif current_page == "Users":
+            log_ui_interaction("page", "render", page="users")
+            render_users_page()
+        elif current_page == "Roles":
+            log_ui_interaction("page", "render", page="roles")
+            render_roles_page()
+        elif current_page == "Permissions":
+            log_ui_interaction("page", "render", page="permissions")
+            render_permissions_page()
+        elif current_page == "Posts":
+            log_ui_interaction("page", "render", page="posts")
+            render_posts_page()
+        elif current_page == "Settings":
+            log_ui_interaction("page", "render", page="settings")
+            render_settings_page()
+        else:
+            # Default to dashboard
+            log_ui_interaction("page", "render", page="dashboard_default")
+            render_dashboard()
+            
+    except Exception as e:
+        log_frontend_error(e, "main_app_render", page=current_page.lower() if 'current_page' in locals() else "unknown")
+        st.error("Erro ao carregar a página")
+        st.exception(e)
 
 def show_footer():
     """Show application footer"""
@@ -179,25 +212,33 @@ def show_footer():
 
 def main():
     """Main application function"""
-    # Configure page
-    configure_page()
-    
-    # Show app header
-    if not st.session_state.get("authenticated", False):
-        # Only show header on login page
-        pass
-    else:
-        # Show compact header for authenticated users
-        with st.container():
-            col1, col2, col3 = st.columns([2, 1, 1])
-            
-            with col1:
-                st.markdown(f"# {settings.APP_ICON} {settings.APP_TITLE}")
-            
-            with col2:
-                # Quick stats for authenticated users
-                if auth_service.is_authenticated():
-                    user = auth_service.get_current_user()
+    try:
+        # Setup logging first
+        setup_frontend_logging()
+        logger = get_frontend_logger()
+        
+        # Configure page
+        configure_page()
+        
+        # Log app startup
+        logger.info("Frontend application started")
+        
+        # Show app header
+        if not st.session_state.get("authenticated", False):
+            # Only show header on login page
+            pass
+        else:
+            # Show compact header for authenticated users
+            with st.container():
+                col1, col2, col3 = st.columns([2, 1, 1])
+                
+                with col1:
+                    st.markdown(f"# {settings.APP_ICON} {settings.APP_TITLE}")
+                
+                with col2:
+                    # Quick stats for authenticated users
+                    if auth_service.is_authenticated():
+                        user = auth_service.get_current_user()
                     if user:
                         st.metric("Papéis", len(user.get("roles", [])))
             
@@ -207,13 +248,14 @@ def main():
                     permissions_count = len(auth_service.get_user_permissions())
                     st.metric("Permissões", permissions_count)
     
-    # Handle authentication and main app
-    try:
+        # Handle authentication and main app
         if handle_authentication():
             render_main_app()
             show_footer()
+            
     except Exception as e:
-        st.error(f"Erro na aplicação: {str(e)}")
+        log_frontend_error(e, "main_application", page="main")
+        st.error(f"Erro crítico na aplicação: {str(e)}")
         
         if settings.DEBUG:
             st.exception(e)

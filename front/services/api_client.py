@@ -1,7 +1,9 @@
 import requests
+import time
 from typing import Dict, Any, Optional, List
 import streamlit as st
 from front.config.settings import settings
+from front.config.logging import log_api_call, log_frontend_error
 
 class APIException(Exception):
     """Custom exception for API errors"""
@@ -35,8 +37,10 @@ class APIClient:
         """Make HTTP request to API"""
         url = f"{self.base_url}{endpoint}"
         headers = self._get_headers(token)
+        start_time = time.time()
         
         try:
+            # Make the request
             if method.upper() == "GET":
                 response = self.session.get(url, headers=headers, params=params)
             elif method.upper() == "POST":
@@ -47,6 +51,18 @@ class APIClient:
                 response = self.session.delete(url, headers=headers)
             else:
                 raise APIException(f"Método HTTP não suportado: {method}")
+            
+            # Calculate duration
+            duration = time.time() - start_time
+            
+            # Log successful requests
+            log_api_call(
+                endpoint=endpoint,
+                method=method.upper(),
+                status_code=response.status_code,
+                duration=duration,
+                success=response.status_code < 400
+            )
             
             # Handle response
             if response.status_code == 200:
@@ -63,18 +79,47 @@ class APIClient:
                 except:
                     detail = f"Erro HTTP {response.status_code}"
                 
+                # Log error response
+                log_api_call(
+                    endpoint=endpoint,
+                    method=method.upper(),
+                    status_code=response.status_code,
+                    duration=duration,
+                    success=False,
+                    error_detail=detail
+                )
+                
                 raise APIException(
                     message=detail,
                     status_code=response.status_code,
                     details=error_data if 'error_data' in locals() else {}
                 )
                 
-        except requests.exceptions.ConnectionError:
+        except requests.exceptions.ConnectionError as e:
+            duration = time.time() - start_time
+            log_api_call(endpoint=endpoint, method=method.upper(), duration=duration, 
+                        success=False, error_detail="Connection error")
+            log_frontend_error(e, f"API connection error: {method} {endpoint}")
             raise APIException("Não foi possível conectar com a API. Verifique se o backend está rodando.")
-        except requests.exceptions.Timeout:
+        
+        except requests.exceptions.Timeout as e:
+            duration = time.time() - start_time
+            log_api_call(endpoint=endpoint, method=method.upper(), duration=duration, 
+                        success=False, error_detail="Timeout")
+            log_frontend_error(e, f"API timeout: {method} {endpoint}")
             raise APIException("Timeout na requisição para a API.")
+        
         except requests.exceptions.RequestException as e:
+            duration = time.time() - start_time
+            log_api_call(endpoint=endpoint, method=method.upper(), duration=duration, 
+                        success=False, error_detail=str(e))
+            log_frontend_error(e, f"API request error: {method} {endpoint}")
             raise APIException(f"Erro na requisição: {str(e)}")
+        
+        except Exception as e:
+            duration = time.time() - start_time
+            log_frontend_error(e, f"Unexpected API error: {method} {endpoint}")
+            raise APIException(f"Erro inesperado: {str(e)}")
     
     # Authentication endpoints
     def login(self, username: str, password: str) -> Dict[str, Any]:

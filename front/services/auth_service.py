@@ -3,6 +3,12 @@ import time
 from typing import Dict, Any, Optional
 from front.services.api_client import api_client, APIException
 from front.utils.helpers import clear_session
+from front.config.logging import (
+    log_user_action, 
+    log_permission_check, 
+    log_frontend_error,
+    get_frontend_logger
+)
 
 class AuthService:
     # Cache TTL para permissões (em segundos)
@@ -12,6 +18,10 @@ class AuthService:
     def login(username: str, password: str) -> bool:
         """Login user and store session data"""
         try:
+            # Log login attempt
+            log_user_action("login_attempt", page="login", success=False, 
+                          resource="authentication", details={"username": username})
+            
             # Call API login
             response = api_client.login(username, password)
             
@@ -26,20 +36,46 @@ class AuthService:
                 # Mark permissions cache timestamp
                 st.session_state.permissions_cached_at = time.time()
                 
+                # Log successful login
+                log_user_action("login", page="login", success=True, 
+                              resource="authentication", 
+                              details={
+                                  "username": username,
+                                  "roles_count": len(user_data.get("roles", [])),
+                                  "user_id": user_data.get("id")
+                              })
+                
                 return True
             else:
+                # Log failed login
+                log_user_action("login_failed", page="login", success=False, 
+                              resource="authentication", 
+                              details={"username": username, "reason": "invalid_credentials"})
                 return False
                 
         except APIException as e:
             st.error(f"Erro no login: {e.message}")
+            log_user_action("login_error", page="login", success=False, 
+                          resource="authentication", 
+                          details={"username": username, "error": e.message})
             return False
         except Exception as e:
             st.error(f"Erro inesperado: {str(e)}")
+            log_frontend_error(e, "login_process", page="login")
             return False
     
     @staticmethod
     def logout():
         """Logout user and clear session"""
+        # Log logout action before clearing session
+        user = AuthService.get_current_user()
+        username = user.get("username") if user else "unknown"
+        user_id = user.get("id") if user else None
+        
+        log_user_action("logout", page="auth", success=True, 
+                      resource="authentication", 
+                      details={"username": username, "user_id": user_id})
+        
         clear_session()
         st.session_state.authenticated = False
         st.session_state.user = None
@@ -131,10 +167,14 @@ class AuthService:
         """Check if current user has specific permission (with auto-refresh)"""
         user = AuthService.get_current_user()
         if not user:
+            log_permission_check(permission, granted=False, page="unknown", 
+                               reason="no_user")
             return False
         
         # Check if user is superuser
         if user.get("is_superuser", False):
+            log_permission_check(permission, granted=True, page="unknown", 
+                               reason="superuser")
             return True
         
         # Try to refresh permissions if cache is expired
@@ -143,6 +183,8 @@ class AuthService:
         # Get updated user data
         user = AuthService.get_current_user()
         if not user:
+            log_permission_check(permission, granted=False, page="unknown", 
+                               reason="user_lost_after_refresh")
             return False
         
         # Check roles and permissions
@@ -151,8 +193,12 @@ class AuthService:
             permissions = role.get("permissions", [])
             for perm in permissions:
                 if perm.get("name") == permission:
+                    log_permission_check(permission, granted=True, page="unknown", 
+                                       role=role.get("name"))
                     return True
         
+        log_permission_check(permission, granted=False, page="unknown", 
+                           reason="permission_not_found")
         return False
     
     @staticmethod

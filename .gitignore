@@ -184,6 +184,29 @@ Thumbs.db
 logs/
 log/
 
+# Custom logs - Backend
+logs/backend/*.log
+logs/backend/auth/*.log
+logs/backend/rbac/*.log
+logs/backend/api/*.log
+logs/backend/errors/*.log
+
+# Custom logs - Frontend  
+logs/frontend/*.log
+logs/frontend/user_actions/*.log
+logs/frontend/permissions/*.log
+logs/frontend/ui/*.log
+
+# Custom logs - System
+logs/system/*.log
+logs/system/startup/*.log
+logs/system/health/*.log
+
+# Log rotation files
+*.log.*
+*.log.gz
+*.log.bz2
+
 # Runtime data
 pids
 *.pid
