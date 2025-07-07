@@ -1,0 +1,73 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[project]
+name = "fast-rbac"
+version = "0.1.0"
+description = "FastAPI application with RBAC and multiple authentication providers"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+    {name = "FastRBAC Team"}
+]
+dependencies = [
+    "fastapi>=0.104.1",
+    "uvicorn[standard]>=0.24.0",
+    "sqlalchemy>=2.0.23",
+    "alembic>=1.12.1",
+    "authlib>=1.2.1",
+    "passlib[bcrypt]>=1.7.4",
+    "python-jose[cryptography]>=3.3.0",
+    "python-multipart>=0.0.6",
+    "python-dotenv>=1.0.0",
+    "httpx>=0.25.2",
+    "pydantic[email]>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "taskipy>=1.12.0",
+    "itsdangerous>=2.1.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.3",
+    "pytest-asyncio>=0.21.1",
+    "black>=23.11.0",
+    "isort>=5.12.0",
+    "flake8>=6.1.0",
+    "mypy>=1.7.1",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=7.4.3",
+    "pytest-asyncio>=0.21.1",
+    "black>=23.11.0",
+    "isort>=5.12.0",
+    "flake8>=6.1.0",
+    "mypy>=1.7.1",
+]
+
+[tool.taskipy.tasks]
+dev = "uv run uvicorn app.main:app --reload"
+init-db = "uv run python app/database/init_data.py"
+test = "uv run pytest"
+format = "uv run black . && uv run isort ."
+lint = "uv run flake8 . && uv run mypy ."
+clean = "rm app.db && uv run task init-db"
+
+[tool.black]
+line-length = 88
+target-version = ['py39']
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true 
