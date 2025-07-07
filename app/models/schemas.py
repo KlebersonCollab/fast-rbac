@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 
@@ -9,10 +9,12 @@ class UserBase(BaseModel):
     email: EmailStr
     full_name: Optional[str] = None
     is_active: bool = True
+    phone_number: Optional[str] = None
+    timezone: str = "UTC"
 
 
 class UserCreate(UserBase):
-    password: Optional[str] = None  # Optional for OAuth users
+    password: str
     provider: Optional[str] = None
     provider_id: Optional[str] = None
 
@@ -22,6 +24,8 @@ class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     full_name: Optional[str] = None
     is_active: Optional[bool] = None
+    phone_number: Optional[str] = None
+    timezone: Optional[str] = None
     password: Optional[str] = None
 
 
@@ -31,6 +35,9 @@ class User(UserBase):
     provider: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    provider_id: Optional[str] = None
+    avatar_url: Optional[str] = None
+    is_2fa_enabled: bool = False
     roles: List["Role"] = []
 
     class Config:
@@ -110,6 +117,59 @@ class LoginRequest(BaseModel):
 class OAuthCallbackRequest(BaseModel):
     code: str
     state: Optional[str] = None
+
+
+# 2FA Schemas
+class TotpSetupRequest(BaseModel):
+    """Schema for TOTP setup request"""
+    pass
+
+
+class TotpSetupResponse(BaseModel):
+    """Schema for TOTP setup response"""
+    secret: str
+    qr_code_url: str
+    manual_entry_key: str
+    backup_codes: List[str]
+
+
+class TotpVerifyRequest(BaseModel):
+    """Schema for TOTP verification"""
+    totp_code: str
+
+
+class TotpVerifyResponse(BaseModel):
+    """Schema for TOTP verification response"""
+    success: bool
+    message: str
+    backup_codes: Optional[List[str]] = None
+
+
+class TotpEnableRequest(BaseModel):
+    """Schema for enabling TOTP"""
+    totp_code: str
+
+
+class TotpDisableRequest(BaseModel):
+    """Schema for disabling TOTP"""
+    totp_code: Optional[str] = None
+    backup_code: Optional[str] = None
+    password: str
+
+
+class LoginWith2FARequest(BaseModel):
+    """Schema for login with 2FA"""
+    username: str
+    password: str
+    totp_code: Optional[str] = None
+    backup_code: Optional[str] = None
+
+
+class TotpStatusResponse(BaseModel):
+    """Schema for TOTP status"""
+    is_2fa_enabled: bool
+    has_backup_codes: bool
+    setup_date: Optional[datetime] = None
 
 
 # Update forward references

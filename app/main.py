@@ -14,7 +14,8 @@ import logging
 from app.config.settings import settings
 from app.config.logging import setup_logging, get_system_logger, get_error_logger, log_error
 from app.database.base import create_tables, check_database_connection
-from app.routes import auth, oauth, admin, protected
+from app.routes import auth, oauth, admin, protected, cache
+from app.routes.auth_2fa import router as auth_2fa_router
 from app.database.init_data import initialize_database
 from app.services.redis_service import redis_service
 from app.services.cache_service import cache_service
@@ -100,14 +101,13 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(auth.router)
-app.include_router(oauth.router)
-app.include_router(admin.router)
-app.include_router(protected.router)
+app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
+app.include_router(auth_2fa_router, prefix="/auth/2fa", tags=["2FA Authentication"])
+app.include_router(admin.router, prefix="/admin", tags=["Admin"])
+app.include_router(protected.router, prefix="/protected", tags=["Protected"])
 
 # Include cache router if Redis is enabled
 if settings.redis_enabled:
-    from app.routes import cache
     app.include_router(cache.router)
 
 

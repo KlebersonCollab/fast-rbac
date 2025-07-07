@@ -34,6 +34,21 @@ class User(Base):
     provider = Column(String, nullable=True)  # 'basic', 'google', 'microsoft', 'github'
     provider_id = Column(String, nullable=True)  # External ID from OAuth provider
     
+    # OAuth fields
+    oauth_access_token = Column(String, nullable=True)
+    oauth_refresh_token = Column(String, nullable=True)
+    
+    # 2FA fields
+    totp_secret = Column(String, nullable=True)
+    is_2fa_enabled = Column(Boolean, default=False)
+    backup_codes = Column(String, nullable=True)  # JSON string of backup codes
+    last_totp_used = Column(String, nullable=True)  # To prevent replay attacks
+    
+    # Profile fields
+    avatar_url = Column(String, nullable=True)
+    phone_number = Column(String, nullable=True)
+    timezone = Column(String, default="UTC")
+    
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
