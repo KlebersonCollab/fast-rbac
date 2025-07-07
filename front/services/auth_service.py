@@ -324,6 +324,41 @@ class AuthService:
         """Force invalidate permissions cache"""
         if hasattr(st.session_state, 'permissions_cached_at'):
             st.session_state.permissions_cached_at = 0
+        if "permissions_cache" in st.session_state:
+            del st.session_state["permissions_cache"]
+        if "permissions_cache_timestamp" in st.session_state:
+            del st.session_state["permissions_cache_timestamp"]
+    
+    @staticmethod
+    def reload_user_from_backend() -> bool:
+        """Recarrega todas as informações do usuário do backend, incluindo permissões"""
+        try:
+            if not AuthService.is_authenticated():
+                return False
+            
+            # Força uma nova consulta ao backend
+            from front.services.api_client import api_client
+            user_data = api_client.get_current_user()
+            
+            if user_data:
+                # Atualiza os dados do usuário na sessão
+                st.session_state["user"] = user_data
+                
+                # Limpa o cache de permissões para forçar reload
+                AuthService.invalidate_permissions_cache()
+                
+                # Recarrega as permissões do backend
+                AuthService.refresh_user_permissions(force=True)
+                
+                logger.info(f"User data reloaded from backend for user: {user_data.get('username')}")
+                return True
+            else:
+                logger.error("Failed to reload user data from backend")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error reloading user from backend: {str(e)}")
+            return False
 
 # Global auth service instance
 auth_service = AuthService() 

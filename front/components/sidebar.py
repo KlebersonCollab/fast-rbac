@@ -126,6 +126,29 @@ def render_sidebar():
                 st.info("Cache limpo!")
                 st.rerun()
         
+        # Botão especial para recarregar do backend
+        if st.button("🔧 Reload Backend", use_container_width=True, help="Recarregar dados completos do backend", type="secondary"):
+            with st.spinner("Recarregando do backend..."):
+                try:
+                    from front.services.api_client import api_client
+                    user_data = api_client.get_current_user()
+                    
+                    if user_data:
+                        # Atualiza os dados do usuário na sessão
+                        st.session_state["user"] = user_data
+                        
+                        # Limpa cache e recarrega permissões
+                        auth_service.invalidate_permissions_cache()
+                        auth_service.refresh_user_permissions(force=True)
+                        
+                        st.success("✅ Dados recarregados do backend!")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error("❌ Erro ao recarregar dados do backend")
+                except Exception as e:
+                    st.error(f"❌ Erro: {str(e)}")
+        
         # Logout button
         st.markdown("---")
         if st.button("🚪 Logout", use_container_width=True, type="secondary"):
