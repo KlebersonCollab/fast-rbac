@@ -1,4 +1,5 @@
 import streamlit as st
+import time
 from front.services.auth_service import auth_service
 
 def render_sidebar():
@@ -83,6 +84,41 @@ def render_sidebar():
         # Quick stats
         permissions_count = len(auth_service.get_user_permissions())
         st.markdown(f"**Permissões:** {permissions_count}")
+        
+        # Permissions cache status
+        st.markdown("---")
+        st.markdown("### 🔄 Cache de Permissões")
+        
+        cache_info = auth_service.get_permissions_cache_info()
+        
+        if cache_info["cached"]:
+            if cache_info["is_expired"]:
+                st.markdown("🟡 **Status:** Expirado")
+            else:
+                st.markdown("🟢 **Status:** Ativo")
+                minutes_left = int(cache_info["expires_in"] / 60)
+                seconds_left = int(cache_info["expires_in"] % 60)
+                st.markdown(f"⏱️ **Expira em:** {minutes_left}m {seconds_left}s")
+        else:
+            st.markdown("🔴 **Status:** Não cache")
+        
+        # Manual refresh button
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔄 Atualizar", use_container_width=True, help="Atualizar permissões manualmente"):
+                with st.spinner("Atualizando..."):
+                    if auth_service.refresh_user_permissions(force=True):
+                        st.success("Permissões atualizadas!")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error("Erro ao atualizar")
+        
+        with col2:
+            if st.button("❌ Limpar", use_container_width=True, help="Forçar expiração do cache"):
+                auth_service.invalidate_permissions_cache()
+                st.info("Cache limpo!")
+                st.rerun()
         
         # Logout button
         st.markdown("---")

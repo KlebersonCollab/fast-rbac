@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import time
 from datetime import datetime, timedelta
 from front.services.auth_service import auth_service
 from front.services.api_client import api_client, APIException
@@ -38,6 +39,10 @@ def render_dashboard():
         
         # System status
         render_system_status()
+        
+        # Permissions system info (for admins)
+        if auth_service.has_permission("permissions:read"):
+            render_permissions_system_info()
         
     except APIException as e:
         st.error(f"Erro ao carregar dados do dashboard: {e.message}")
@@ -360,4 +365,119 @@ def render_system_status():
         **Última atualização:** {datetime.now().strftime('%d/%m/%Y %H:%M')}  
         **Usuário atual:** {user.get('username') if user else 'N/A'}  
         **Permissões ativas:** {len(auth_service.get_user_permissions())}  
-        """) 
+        """)
+
+def render_permissions_system_info():
+    """Render dynamic permissions system information"""
+    st.markdown("---")
+    st.markdown("### 🔄 Sistema de Permissões Dinâmicas")
+    
+    # Get cache info
+    cache_info = auth_service.get_permissions_cache_info()
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("**📊 Status do Cache**")
+        if cache_info["cached"]:
+            if cache_info["is_expired"]:
+                st.warning("🟡 Cache Expirado")
+                st.markdown("As permissões serão atualizadas na próxima verificação.")
+            else:
+                st.success("🟢 Cache Ativo")
+                minutes = int(cache_info["expires_in"] / 60)
+                seconds = int(cache_info["expires_in"] % 60)
+                st.markdown(f"Expira em: {minutes}m {seconds}s")
+        else:
+            st.error("🔴 Sem Cache")
+            st.markdown("Permissões serão consultadas em tempo real.")
+    
+    with col2:
+        st.markdown("**⚡ Performance**")
+        cache_age_minutes = int(cache_info.get("cache_age", 0) / 60)
+        st.metric("Idade do Cache", f"{cache_age_minutes} min")
+        
+        # Show TTL setting
+        ttl_minutes = int(auth_service.PERMISSIONS_CACHE_TTL / 60)
+        st.metric("TTL Configurado", f"{ttl_minutes} min")
+    
+    with col3:
+        st.markdown("**🔧 Controles**")
+        if st.button("🔄 Forçar Atualização", use_container_width=True):
+            with st.spinner("Atualizando permissões..."):
+                if auth_service.refresh_user_permissions(force=True):
+                    st.success("✅ Permissões atualizadas!")
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error("❌ Erro na atualização")
+        
+        if st.button("❌ Invalidar Cache", use_container_width=True):
+            auth_service.invalidate_permissions_cache()
+            st.info("Cache invalidado!")
+            st.rerun()
+    
+    # Permissions details
+    with st.expander("🔍 Detalhes das Permissões Atuais"):
+        user_permissions = auth_service.get_user_permissions(refresh=False)
+        
+        st.markdown(f"**Total de Permissões:** {len(user_permissions)}")
+        
+        if user_permissions:
+            # Group permissions by resource
+            permissions_by_resource = {}
+            for perm in user_permissions:
+                resource = perm.split(':')[0] if ':' in perm else 'other'
+                if resource not in permissions_by_resource:
+                    permissions_by_resource[resource] = []
+                permissions_by_resource[resource].append(perm)
+            
+            for resource, perms in permissions_by_resource.items():
+                st.markdown(f"**{resource.title()}:**")
+                for perm in sorted(perms):
+                    st.markdown(f"- `{perm}`")
+        else:
+            st.info("Nenhuma permissão encontrada.")
+    
+    # System capabilities demo
+    with st.expander("🧪 Demonstração de Capacidades"):
+        st.markdown("""
+        **🎯 O sistema agora suporta:**
+        
+        1. **Cache Inteligente**: Permissões são atualizadas automaticamente a cada 5 minutos
+        2. **Verificação Dinâmica**: Novas permissões são detectadas automaticamente
+        3. **Fallback Gracioso**: Se a atualização falhar, usa dados em cache
+        4. **Controle Manual**: Administradores podem forçar atualizações
+        5. **Performance Otimizada**: Evita consultas desnecessárias ao backend
+        
+        **📝 Como testar:**
+        - Crie uma nova permissão no backend
+        - Atribua ela a um papel
+        - Use o botão "Forçar Atualização" acima
+        - A nova permissão aparecerá automaticamente no frontend!
+        """)
+        
+        if st.button("🧪 Testar Verificação de Permissão", use_container_width=True):
+            test_permission = st.text_input("Permissão para testar:", placeholder="ex: posts:create")
+            if test_permission:
+                # Test both cached and live versions
+                has_cached = auth_service.has_permission_cached(test_permission)
+                has_live = auth_service.has_permission(test_permission)
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("**Cache:**")
+                    if has_cached:
+                        st.success("✅ Permitido")
+                    else:
+                        st.error("❌ Negado")
+                
+                with col2:
+                    st.markdown("**Tempo Real:**")
+                    if has_live:
+                        st.success("✅ Permitido")
+                    else:
+                        st.error("❌ Negado")
+                
+                if has_cached != has_live:
+                    st.warning("⚠️ Diferença detectada! Cache pode estar desatualizado.") 
