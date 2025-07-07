@@ -492,17 +492,35 @@ def show_logs_dashboard():
         errors_df = pd.DataFrame(summary['recent_errors'])
         
         if not errors_df.empty:
-            # Formata timestamp
-            errors_df['timestamp'] = pd.to_datetime(errors_df['timestamp']).dt.strftime('%Y-%m-%d %H:%M:%S')
+            # Formata timestamp se existe
+            if 'timestamp' in errors_df.columns:
+                errors_df['timestamp'] = pd.to_datetime(errors_df['timestamp']).dt.strftime('%Y-%m-%d %H:%M:%S')
             
-            # Trunca mensagens muito longas
-            errors_df['message'] = errors_df['message'].astype(str).str[:150] + '...'
+            # Trunca mensagens muito longas se existe
+            if 'message' in errors_df.columns:
+                errors_df['message'] = errors_df['message'].astype(str).str[:150] + '...'
             
-            st.dataframe(
-                errors_df[['timestamp', 'level', 'category', 'logger', 'message']],
-                use_container_width=True,
-                height=200
-            )
+            # Seleciona apenas colunas que existem
+            desired_columns = ['timestamp', 'level', 'category', 'logger', 'message']
+            available_columns = [col for col in desired_columns if col in errors_df.columns]
+            
+            if available_columns:
+                st.dataframe(
+                    errors_df[available_columns],
+                    use_container_width=True,
+                    height=200
+                )
+            else:
+                # Se nenhuma coluna esperada existe, mostra todas as disponíveis
+                st.dataframe(
+                    errors_df,
+                    use_container_width=True,
+                    height=200
+                )
+        else:
+            st.info("Nenhum erro encontrado no período selecionado.")
+    else:
+        st.info("✅ Nenhum erro recente encontrado!")
     
     # ========== FOOTER ==========
     st.markdown("---")
