@@ -34,6 +34,9 @@ def init_permissions(db: Session):
         # Settings permissions
         {"name": "settings:read", "description": "Read settings", "resource": "settings", "action": "read"},
         {"name": "settings:update", "description": "Update settings", "resource": "settings", "action": "update"},
+        
+        # Logs permissions
+        {"name": "logs:view", "description": "View system logs", "resource": "logs", "action": "view"},
     ]
     
     for perm_data in permissions:
@@ -56,7 +59,8 @@ def init_roles(db: Session):
                 "roles:create", "roles:read", "roles:update", "roles:delete",
                 "permissions:create", "permissions:read", "permissions:update", "permissions:delete",
                 "posts:create", "posts:read", "posts:update", "posts:delete",
-                "settings:read", "settings:update"
+                "settings:read", "settings:update",
+                "logs:view"
             ]
         },
         {
@@ -67,7 +71,8 @@ def init_roles(db: Session):
                 "roles:read",
                 "permissions:read",
                 "posts:create", "posts:read", "posts:update", "posts:delete",
-                "settings:read"
+                "settings:read",
+                "logs:view"
             ]
         },
         {

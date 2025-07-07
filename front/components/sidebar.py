@@ -41,6 +41,12 @@ def render_sidebar():
                 st.session_state.page = "Permissions"
                 st.rerun()
         
+        # Logs dashboard (requires logs:view permission)
+        if auth_service.has_permission("logs:view"):
+            if st.button("📊 Logs Monitor", use_container_width=True):
+                st.session_state.page = "Logs"
+                st.rerun()
+        
         # Protected examples
         st.markdown("---")
         st.markdown("### 🧪 Exemplos")

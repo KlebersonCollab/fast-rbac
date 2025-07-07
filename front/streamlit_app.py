@@ -15,6 +15,7 @@ from front.pages.dashboard import render_dashboard
 from front.pages.users import render_users_page
 from front.pages.roles import render_roles_page
 from front.pages.permissions import render_permissions_page
+from front.pages.logs_dashboard import show_logs_dashboard
 from front.pages.examples import render_posts_page, render_settings_page
 
 def configure_page():
@@ -168,6 +169,9 @@ def render_main_app():
         elif current_page == "Permissions":
             log_ui_interaction("page", "render", page="permissions")
             render_permissions_page()
+        elif current_page == "Logs":
+            log_ui_interaction("page", "render", page="logs")
+            show_logs_dashboard()
         elif current_page == "Posts":
             log_ui_interaction("page", "render", page="posts")
             render_posts_page()
