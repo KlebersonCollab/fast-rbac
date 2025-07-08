@@ -283,6 +283,47 @@ class APIClient:
         """Check API health"""
         return self._make_request("GET", "/health")
 
+    # Generic HTTP methods for Level 5 enterprise features
+    def get(self, endpoint: str, params: Dict = None) -> Dict[str, Any]:
+        """Generic GET request"""
+        try:
+            result = self._make_request("GET", endpoint, params=params)
+            return {"status_code": 200, "data": result}
+        except APIException as e:
+            return {"status_code": e.status_code or 500, "error": e.message}
+        except Exception as e:
+            return {"status_code": 500, "error": str(e)}
+
+    def post(self, endpoint: str, data: Dict = None) -> Dict[str, Any]:
+        """Generic POST request"""
+        try:
+            result = self._make_request("POST", endpoint, data=data)
+            return {"status_code": 200, "data": result}
+        except APIException as e:
+            return {"status_code": e.status_code or 500, "error": e.message}
+        except Exception as e:
+            return {"status_code": 500, "error": str(e)}
+
+    def put(self, endpoint: str, data: Dict = None) -> Dict[str, Any]:
+        """Generic PUT request"""
+        try:
+            result = self._make_request("PUT", endpoint, data=data)
+            return {"status_code": 200, "data": result}
+        except APIException as e:
+            return {"status_code": e.status_code or 500, "error": e.message}
+        except Exception as e:
+            return {"status_code": 500, "error": str(e)}
+
+    def delete(self, endpoint: str) -> Dict[str, Any]:
+        """Generic DELETE request"""
+        try:
+            result = self._make_request("DELETE", endpoint)
+            return {"status_code": 200, "data": result}
+        except APIException as e:
+            return {"status_code": e.status_code or 500, "error": e.message}
+        except Exception as e:
+            return {"status_code": 500, "error": str(e)}
+
 
 # Global API client instance
 api_client = APIClient()
