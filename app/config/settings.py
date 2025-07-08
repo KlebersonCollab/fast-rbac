@@ -1,86 +1,98 @@
-from pydantic_settings import BaseSettings
-from pydantic import Field, validator
-from typing import Optional, List
 import os
+from functools import lru_cache
+from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urlparse
+
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
     # Application
     app_name: str = "FastAPI RBAC System"
-    app_version: str = "1.0.0"
-    environment: str = Field(default="development", env="ENVIRONMENT")
-    debug: bool = Field(default=False, env="DEBUG")
-    
+    version: str = "1.0.0"
+    description: str = "FastAPI-based RBAC system with JWT authentication"
+    environment: str = "development"
+    debug: bool = False
+
     # Database Configuration
-    database_url: str = Field(
-        default="sqlite:///./app.db",
-        env="DATABASE_URL",
-        description="Database URL. Use postgresql://user:pass@host:port/dbname for PostgreSQL"
-    )
-    
+    database_url: str = "sqlite:///./app.db"
+    db_echo: bool = False
+
     # Redis Configuration (for caching and sessions)
-    redis_url: str = Field(
-        default="redis://localhost:6379/0",
-        env="REDIS_URL"
-    )
-    redis_enabled: bool = Field(default=False, env="REDIS_ENABLED")
-    
+    redis_url: str = "redis://localhost:6379"
+    redis_enabled: bool = False
+
     # Security
-    secret_key: str = Field(env="SECRET_KEY")
+    secret_key: str = "your-secret-key-here-change-in-production"
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = Field(default=30, env="ACCESS_TOKEN_EXPIRE_MINUTES")
-    refresh_token_expire_days: int = Field(default=7, env="REFRESH_TOKEN_EXPIRE_DAYS")
-    
+    access_token_expire_minutes: int = 30
+    refresh_token_expire_days: int = 7
+
     # CORS
-    allowed_origins: str = Field(
-        default="*", 
-        env="ALLOWED_ORIGINS"
-    )
-    
+    allowed_origins: List[str] = ["*"]
+    allow_credentials: bool = True
+    allow_methods: List[str] = ["*"]
+    allow_headers: List[str] = ["*"]
+
     # Rate Limiting
-    rate_limit_enabled: bool = Field(default=True, env="RATE_LIMIT_ENABLED")
-    rate_limit_requests: int = Field(default=100, env="RATE_LIMIT_REQUESTS")
-    rate_limit_window: int = Field(default=60, env="RATE_LIMIT_WINDOW")  # seconds
-    
+    rate_limit_enabled: bool = True
+    rate_limit_requests: int = 100
+    rate_limit_window: int = 60  # seconds
+
     # OAuth Configuration
-    google_client_id: Optional[str] = Field(default=None, env="GOOGLE_CLIENT_ID")
-    google_client_secret: Optional[str] = Field(default=None, env="GOOGLE_CLIENT_SECRET")
-    microsoft_client_id: Optional[str] = Field(default=None, env="MICROSOFT_CLIENT_ID")
-    microsoft_client_secret: Optional[str] = Field(default=None, env="MICROSOFT_CLIENT_SECRET")
-    github_client_id: Optional[str] = Field(default=None, env="GITHUB_CLIENT_ID")
-    github_client_secret: Optional[str] = Field(default=None, env="GITHUB_CLIENT_SECRET")
-    
+    google_client_id: Optional[str] = None
+    google_client_secret: Optional[str] = None
+    microsoft_client_id: Optional[str] = None
+    microsoft_client_secret: Optional[str] = None
+    github_client_id: Optional[str] = None
+    github_client_secret: Optional[str] = None
+
     # Email Configuration (for notifications)
-    smtp_host: Optional[str] = Field(default=None, env="SMTP_HOST")
-    smtp_port: int = Field(default=587, env="SMTP_PORT")
-    smtp_username: Optional[str] = Field(default=None, env="SMTP_USERNAME")
-    smtp_password: Optional[str] = Field(default=None, env="SMTP_PASSWORD")
-    smtp_use_tls: bool = Field(default=True, env="SMTP_USE_TLS")
-    
+    smtp_host: Optional[str] = None
+    smtp_port: int = 587
+    smtp_username: Optional[str] = None
+    smtp_password: Optional[str] = None
+    smtp_use_tls: bool = True
+
     # Monitoring
-    enable_prometheus: bool = Field(default=False, env="ENABLE_PROMETHEUS")
-    log_level: str = Field(default="INFO", env="LOG_LEVEL")
-    
+    enable_prometheus: bool = False
+    log_level: str = "INFO"
+
     # File Storage
-    upload_max_size: int = Field(default=10*1024*1024, env="UPLOAD_MAX_SIZE")  # 10MB
-    upload_allowed_types: str = Field(
-        default="image/jpeg,image/png,image/gif,application/pdf",
-        env="UPLOAD_ALLOWED_TYPES"
-    )
-    
-    @validator("allowed_origins", pre=True)
-    def parse_cors_origins(cls, v):
+    upload_max_size: int = 10 * 1024 * 1024  # 10MB
+    upload_allowed_types: List[str] = [
+        "jpg",
+        "jpeg",
+        "png",
+        "gif",
+        "pdf",
+        "doc",
+        "docx",
+    ]
+
+    # API Documentation
+    docs_url: str = "/docs"
+    redoc_url: str = "/redoc"
+    openapi_url: str = "/openapi.json"
+
+    # Application version
+    app_version: str = "5.0.0"
+
+    @field_validator("allowed_origins", mode="before")
+    @classmethod
+    def validate_allowed_origins(cls, v):
         if isinstance(v, str):
-            return v  # Return as string, will be converted by property
+            return [origin.strip() for origin in v.split(",")]
         return v
-    
-    @validator("upload_allowed_types", pre=True)
-    def parse_upload_types(cls, v):
+
+    @field_validator("upload_allowed_types", mode="before")
+    @classmethod
+    def validate_upload_allowed_types(cls, v):
         if isinstance(v, str):
-            return v  # Return as string, will be converted by property
+            return [ext.strip() for ext in v.split(",")]
         return v
-    
+
     @property
     def allowed_origins_list(self) -> List[str]:
         """Convert allowed_origins string to list"""
@@ -89,22 +101,24 @@ class Settings(BaseSettings):
                 return ["*"]
             return [origin.strip() for origin in self.allowed_origins.split(",")]
         return self.allowed_origins
-    
+
     @property
     def upload_allowed_types_list(self) -> List[str]:
         """Convert upload_allowed_types string to list"""
         if isinstance(self.upload_allowed_types, str):
-            return [mime_type.strip() for mime_type in self.upload_allowed_types.split(",")]
+            return [
+                mime_type.strip() for mime_type in self.upload_allowed_types.split(",")
+            ]
         return self.upload_allowed_types
-    
+
     @property
     def is_production(self) -> bool:
         return self.environment.lower() == "production"
-    
+
     @property
     def is_development(self) -> bool:
         return self.environment.lower() == "development"
-    
+
     @property
     def database_type(self) -> str:
         if self.database_url.startswith("postgresql"):
@@ -120,13 +134,13 @@ class Settings(BaseSettings):
         """Extract Redis host from URL"""
         parsed = urlparse(self.redis_url)
         return parsed.hostname or "localhost"
-    
+
     @property
     def redis_port(self) -> int:
         """Extract Redis port from URL"""
         parsed = urlparse(self.redis_url)
         return parsed.port or 6379
-    
+
     @property
     def redis_db(self) -> int:
         """Extract Redis database from URL"""
@@ -137,21 +151,28 @@ class Settings(BaseSettings):
             except ValueError:
                 return 0
         return 0
-    
+
     @property
     def redis_password(self) -> Optional[str]:
         """Extract Redis password from URL"""
         parsed = urlparse(self.redis_url)
         return parsed.password
-    
+
     @property
     def redis_max_connections(self) -> int:
         """Redis max connections for connection pool"""
         return 20
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
+    # Pydantic V2 configuration - sem arquivo .env
+    model_config = {
+        "case_sensitive": False,
+        "extra": "ignore",
+    }
 
 
-settings = Settings() 
+@lru_cache()
+def get_settings():
+    return Settings()
+
+
+settings = get_settings()

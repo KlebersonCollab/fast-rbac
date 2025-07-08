@@ -1,22 +1,29 @@
 import streamlit as st
-from front.config.settings import settings
+
+from front.components.sidebar import get_current_page, render_sidebar
 from front.config.logging import (
-    setup_frontend_logging, 
-    log_user_action, 
-    log_frontend_error,
     get_frontend_logger,
-    log_ui_interaction
+    log_frontend_error,
+    log_ui_interaction,
+    log_user_action,
+    setup_frontend_logging,
 )
-from front.utils.helpers import init_session_state, check_session_timeout
+from front.config.settings import settings
 from front.services.auth_service import auth_service
-from front.components.sidebar import render_sidebar, get_current_page
-from front.views.login import render_login
+from front.utils.helpers import check_session_timeout, init_session_state
 from front.views.dashboard import render_dashboard
-from front.views.users import render_users_page
-from front.views.roles import render_roles_page
-from front.views.permissions import render_permissions_page
-from front.views.logs_dashboard import show_logs_dashboard
 from front.views.examples import render_posts_page, render_settings_page
+from front.views.login import render_login
+from front.views.logs_dashboard import show_logs_dashboard
+from front.views.permissions import render_permissions_page
+from front.views.roles import render_roles_page
+from front.views.users import render_users_page
+
+# Level 5 Enterprise Views
+from front.views.api_keys import render_api_keys_view
+from front.views.tenants import render_tenants_view  
+from front.views.webhooks import render_webhooks_view
+
 
 def configure_page():
     """Configure Streamlit page"""
@@ -24,11 +31,12 @@ def configure_page():
         page_title=settings.PAGE_TITLE,
         page_icon=settings.PAGE_ICON,
         layout=settings.LAYOUT,
-        initial_sidebar_state=settings.INITIAL_SIDEBAR_STATE
+        initial_sidebar_state=settings.INITIAL_SIDEBAR_STATE,
     )
-    
+
     # Custom CSS
-    st.markdown("""
+    st.markdown(
+        """
     <style>
         .main .block-container {
             padding-top: 1rem;
@@ -114,48 +122,57 @@ def configure_page():
             font-weight: bold;
         }
     </style>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
+
 
 def handle_authentication():
     """Handle user authentication flow"""
     try:
         # Initialize session state
         init_session_state()
-        
+
         # Check session timeout
         if auth_service.is_authenticated() and check_session_timeout():
             st.warning("Sua sessão expirou. Faça login novamente.")
-            log_user_action("session_timeout", page="auth", success=False, 
-                          reason="session_expired")
+            log_user_action(
+                "session_timeout", page="auth", success=False, reason="session_expired"
+            )
             auth_service.logout()
             return False
-        
+
         # Check if user is authenticated
         if not auth_service.is_authenticated():
             log_ui_interaction("auth_page", "display", page="login")
             render_login()
             return False
-        
+
         return True
-        
+
     except Exception as e:
         log_frontend_error(e, "authentication_flow", page="auth")
         st.error("Erro no sistema de autenticação")
         return False
+
 
 def render_main_app():
     """Render main application"""
     try:
         # Render sidebar
         render_sidebar()
-        
+
         # Get current page
         current_page = get_current_page()
-        
+
         # Log page navigation
-        log_user_action("page_navigation", page=current_page.lower(), 
-                       success=True, resource="page_access")
-        
+        log_user_action(
+            "page_navigation",
+            page=current_page.lower(),
+            success=True,
+            resource="page_access",
+        )
+
         # Route to appropriate page
         if current_page == "Dashboard":
             log_ui_interaction("page", "render", page="dashboard")
@@ -178,34 +195,50 @@ def render_main_app():
         elif current_page == "Settings":
             log_ui_interaction("page", "render", page="settings")
             render_settings_page()
+        # Level 5 Enterprise Pages
+        elif current_page == "API Keys":
+            log_ui_interaction("page", "render", page="api_keys")
+            render_api_keys_view()
+        elif current_page == "Tenants":
+            log_ui_interaction("page", "render", page="tenants")
+            render_tenants_view()
+        elif current_page == "Webhooks":
+            log_ui_interaction("page", "render", page="webhooks")
+            render_webhooks_view()
         else:
             # Default to dashboard
             log_ui_interaction("page", "render", page="dashboard_default")
             render_dashboard()
-            
+
     except Exception as e:
-        log_frontend_error(e, "main_app_render", page=current_page.lower() if 'current_page' in locals() else "unknown")
+        log_frontend_error(
+            e,
+            "main_app_render",
+            page=current_page.lower() if "current_page" in locals() else "unknown",
+        )
         st.error("Erro ao carregar a página")
         st.exception(e)
+
 
 def show_footer():
     """Show application footer"""
     st.markdown("---")
-    
+
     col1, col2, col3 = st.columns(3)
-    
+
     with col1:
         st.markdown("**FastAPI RBAC v1.0.0**")
         st.caption("Sistema de controle de acesso")
-    
+
     with col2:
         st.markdown("**Tecnologias:**")
         st.caption("FastAPI • Streamlit • SQLAlchemy • JWT")
-    
+
     with col3:
         st.markdown("**Status:**")
         try:
             from front.services.api_client import api_client
+
             health = api_client.health_check()
             if health.get("status") == "healthy":
                 st.caption("🟢 Backend Online")
@@ -214,19 +247,20 @@ def show_footer():
         except:
             st.caption("🔴 Backend Offline")
 
+
 def main():
     """Main application function"""
     try:
         # Setup logging first
         setup_frontend_logging()
         logger = get_frontend_logger()
-        
+
         # Configure page
         configure_page()
-        
+
         # Log app startup
         logger.info("Frontend application started")
-        
+
         # Show app header
         if not st.session_state.get("authenticated", False):
             # Only show header on login page
@@ -235,37 +269,38 @@ def main():
             # Show compact header for authenticated users
             with st.container():
                 col1, col2, col3 = st.columns([2, 1, 1])
-                
+
                 with col1:
                     st.markdown(f"# {settings.APP_ICON} {settings.APP_TITLE}")
-                
+
                 with col2:
                     # Quick stats for authenticated users
                     if auth_service.is_authenticated():
                         user = auth_service.get_current_user()
                     if user:
                         st.metric("Papéis", len(user.get("roles", [])))
-            
+
             with col3:
                 # Quick actions
                 if auth_service.is_authenticated():
                     permissions_count = len(auth_service.get_user_permissions())
                     st.metric("Permissões", permissions_count)
-    
+
         # Handle authentication and main app
         if handle_authentication():
             render_main_app()
             show_footer()
-            
+
     except Exception as e:
         log_frontend_error(e, "main_application", page="main")
         st.error(f"Erro crítico na aplicação: {str(e)}")
-        
+
         if settings.DEBUG:
             st.exception(e)
-        
+
         if st.button("🔄 Recarregar Aplicação"):
             st.rerun()
 
+
 if __name__ == "__main__":
-    main() 
+    main()

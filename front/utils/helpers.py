@@ -1,15 +1,18 @@
-import streamlit as st
+import time
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
-import time
+
+import streamlit as st
+
 
 def format_datetime(dt_str: str) -> str:
     """Format datetime string for display"""
     try:
-        dt = datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
+        dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
         return dt.strftime("%d/%m/%Y %H:%M")
     except:
         return dt_str
+
 
 def show_success_message(message: str, duration: int = 3):
     """Show success message"""
@@ -18,12 +21,14 @@ def show_success_message(message: str, duration: int = 3):
     time.sleep(duration)
     success_placeholder.empty()
 
+
 def show_error_message(message: str, duration: int = 5):
     """Show error message"""
     error_placeholder = st.empty()
     error_placeholder.error(message)
     time.sleep(duration)
     error_placeholder.empty()
+
 
 def show_warning_message(message: str, duration: int = 4):
     """Show warning message"""
@@ -32,16 +37,18 @@ def show_warning_message(message: str, duration: int = 4):
     time.sleep(duration)
     warning_placeholder.empty()
 
+
 def format_role_badge(role_name: str) -> str:
     """Format role as colored badge"""
     color_map = {
         "admin": "red",
-        "manager": "orange", 
+        "manager": "orange",
         "editor": "blue",
-        "viewer": "gray"
+        "viewer": "gray",
     }
     color = color_map.get(role_name.lower(), "gray")
     return f":{color}[{role_name}]"
+
 
 def format_permission_badge(permission: str) -> str:
     """Format permission as colored badge"""
@@ -56,24 +63,27 @@ def format_permission_badge(permission: str) -> str:
     else:
         return f":gray[{permission}]"
 
+
 def check_session_timeout() -> bool:
     """Check if session has expired"""
     if "last_activity" not in st.session_state:
         return True
-    
+
     last_activity = st.session_state.last_activity
     now = datetime.now()
-    
+
     # Import here to avoid circular import
     from front.config.settings import settings
+
     timeout_minutes = settings.SESSION_TIMEOUT
-    
+
     if now - last_activity > timedelta(minutes=timeout_minutes):
         return True
-    
+
     # Update last activity
     st.session_state.last_activity = now
     return False
+
 
 def clear_session():
     """Clear all session state"""
@@ -81,6 +91,7 @@ def clear_session():
     for key in list(st.session_state.keys()):
         if key not in keys_to_keep:
             del st.session_state[key]
+
 
 def init_session_state():
     """Initialize session state variables"""
@@ -95,51 +106,56 @@ def init_session_state():
     if "page" not in st.session_state:
         st.session_state.page = "Dashboard"
 
+
 def create_data_table(data: list, columns: list, key_prefix: str = "table"):
     """Create interactive data table"""
     if not data:
         st.info("Nenhum dado encontrado.")
         return None
-    
+
     import pandas as pd
+
     df = pd.DataFrame(data)
-    
+
     # Filter columns if specified
     if columns and len(columns) > 0:
         available_cols = [col for col in columns if col in df.columns]
         if available_cols:
             df = df[available_cols]
-    
+
     # Display with pagination
     page_size = 10
     total_rows = len(df)
-    
+
     if total_rows > page_size:
         # Pagination controls
         col1, col2, col3 = st.columns([1, 2, 1])
-        
+
         with col2:
             page = st.selectbox(
                 "Página",
                 range(1, (total_rows // page_size) + 2),
-                key=f"{key_prefix}_page"
+                key=f"{key_prefix}_page",
             )
-        
+
         start_idx = (page - 1) * page_size
         end_idx = start_idx + page_size
         df_page = df.iloc[start_idx:end_idx]
-        
-        st.info(f"Mostrando {start_idx + 1}-{min(end_idx, total_rows)} de {total_rows} registros")
+
+        st.info(
+            f"Mostrando {start_idx + 1}-{min(end_idx, total_rows)} de {total_rows} registros"
+        )
     else:
         df_page = df
-    
+
     return st.dataframe(df_page, use_container_width=True, key=f"{key_prefix}_df")
+
 
 def confirm_action(message: str, key: str) -> bool:
     """Show confirmation dialog"""
     if f"confirm_{key}" not in st.session_state:
         st.session_state[f"confirm_{key}"] = False
-    
+
     if not st.session_state[f"confirm_{key}"]:
         if st.button(f"❌ {message}", key=f"btn_{key}"):
             st.session_state[f"confirm_{key}"] = True
@@ -155,4 +171,4 @@ def confirm_action(message: str, key: str) -> bool:
             if st.button("❌ Cancelar", key=f"confirm_no_{key}"):
                 st.session_state[f"confirm_{key}"] = False
                 st.rerun()
-        return False 
+        return False

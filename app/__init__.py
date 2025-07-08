@@ -1,1 +1,1 @@
-# FastAPI RBAC Application 
+# FastAPI RBAC Application

@@ -1,6 +1,7 @@
-from pydantic import BaseModel, EmailStr
-from typing import List, Optional, Dict, Any
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, ConfigDict, EmailStr
 
 
 # Base schemas
@@ -40,8 +41,7 @@ class User(UserBase):
     is_2fa_enabled: bool = False
     roles: List["Role"] = []
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Role schemas
@@ -67,8 +67,7 @@ class Role(RoleBase):
     updated_at: datetime
     permissions: List["Permission"] = []
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Permission schemas
@@ -95,8 +94,7 @@ class Permission(PermissionBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Auth schemas
@@ -122,11 +120,13 @@ class OAuthCallbackRequest(BaseModel):
 # 2FA Schemas
 class TotpSetupRequest(BaseModel):
     """Schema for TOTP setup request"""
+
     pass
 
 
 class TotpSetupResponse(BaseModel):
     """Schema for TOTP setup response"""
+
     secret: str
     qr_code_url: str
     manual_entry_key: str
@@ -135,11 +135,13 @@ class TotpSetupResponse(BaseModel):
 
 class TotpVerifyRequest(BaseModel):
     """Schema for TOTP verification"""
+
     totp_code: str
 
 
 class TotpVerifyResponse(BaseModel):
     """Schema for TOTP verification response"""
+
     success: bool
     message: str
     backup_codes: Optional[List[str]] = None
@@ -147,11 +149,13 @@ class TotpVerifyResponse(BaseModel):
 
 class TotpEnableRequest(BaseModel):
     """Schema for enabling TOTP"""
+
     totp_code: str
 
 
 class TotpDisableRequest(BaseModel):
     """Schema for disabling TOTP"""
+
     totp_code: Optional[str] = None
     backup_code: Optional[str] = None
     password: str
@@ -159,6 +163,7 @@ class TotpDisableRequest(BaseModel):
 
 class LoginWith2FARequest(BaseModel):
     """Schema for login with 2FA"""
+
     username: str
     password: str
     totp_code: Optional[str] = None
@@ -167,6 +172,7 @@ class LoginWith2FARequest(BaseModel):
 
 class TotpStatusResponse(BaseModel):
     """Schema for TOTP status"""
+
     is_2fa_enabled: bool
     has_backup_codes: bool
     setup_date: Optional[datetime] = None
@@ -174,4 +180,4 @@ class TotpStatusResponse(BaseModel):
 
 # Update forward references
 User.model_rebuild()
-Role.model_rebuild() 
+Role.model_rebuild()
