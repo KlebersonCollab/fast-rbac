@@ -40,12 +40,11 @@ async def get_api_keys_stats(
         try:
             stats = service.get_api_key_stats(
                 api_key_id=api_key.id,
-                user_id=current_user.id,
-                tenant_id=current_user.tenant_id,
+                current_user=current_user,
                 days=30,
             )
-            total_requests += stats.total_requests
-        except:
+            total_requests += stats.get("total_requests", 0)
+        except Exception:
             pass
 
     return {
@@ -173,13 +172,13 @@ async def get_api_key_usage(
         )
     
     usage = service.get_api_key_usage(
-        api_key_id=api_key_id, skip=skip, limit=limit
+        api_key_id=api_key_id, current_user=current_user, skip=skip, limit=limit
     )
     return usage
 
 
 @router.get("/{api_key_id}/stats", response_model=APIKeyUsageStats)
-async def get_api_key_stats(
+async def get_api_key_stats_endpoint(
     api_key_id: int,
     days: int = Query(30, ge=1, le=365),
     current_user: User = Depends(get_current_user),
@@ -194,43 +193,7 @@ async def get_api_key_stats(
             status_code=status.HTTP_404_NOT_FOUND, detail="API key not found"
         )
 
-    stats = service.get_api_key_stats(api_key_id=api_key_id, days=days)
+    stats = service.get_api_key_stats(
+        api_key_id=api_key_id, current_user=current_user, days=days
+    )
     return stats
-
-
-@router.get("/stats", response_model=dict)
-async def get_api_keys_stats(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Get global API keys statistics for the current user's tenant."""
-    service = APIKeyService(db)
-    api_keys = service.get_api_keys(current_user=current_user, limit=1000)
-
-    # Calculate aggregated stats
-    total_keys = len(api_keys)
-    active_keys = len([key for key in api_keys if key.is_active])
-    inactive_keys = total_keys - active_keys
-
-    # Calculate usage stats (simplified version)
-    total_requests = 0
-    for api_key in api_keys:
-        # Get usage for each key (last 30 days)
-        try:
-            stats = service.get_api_key_stats(
-                api_key_id=api_key.id,
-                user_id=current_user.id,
-                tenant_id=current_user.tenant_id,
-                days=30,
-            )
-            total_requests += stats.total_requests
-        except:
-            pass
-
-    return {
-        "total_keys": total_keys,
-        "active_keys": active_keys,
-        "inactive_keys": inactive_keys,
-        "total_requests_30d": total_requests,
-        "average_requests_per_key": total_requests / max(total_keys, 1),
-    }

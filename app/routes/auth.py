@@ -14,7 +14,7 @@ from app.models.schemas import LoginRequest, Token, User, UserRegister
 router = APIRouter(tags=["authentication"])
 
 
-@router.post("/register", response_model=User)
+@router.post("/register", response_model=User, status_code=status.HTTP_201_CREATED)
 async def register(user_register: UserRegister, db: Session = Depends(get_db)):
     """Register a new user and create a tenant for them."""
     auth_service = AuthService(db)

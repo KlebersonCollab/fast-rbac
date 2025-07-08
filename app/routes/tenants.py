@@ -3,7 +3,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, require_superadmin_or_admin
 from app.database.base import get_db
 from app.models.user import User
 from app.schemas.tenant import (
@@ -86,7 +86,7 @@ async def get_tenants_analytics(
     }
 
 
-@router.post("/", response_model=TenantResponse)
+@router.post("/", response_model=TenantResponse, status_code=status.HTTP_201_CREATED)
 async def create_tenant(
     tenant_data: TenantCreate,
     current_user: User = Depends(get_current_user),
@@ -112,6 +112,11 @@ async def get_tenants(
     tenants = service.get_tenants(
         current_user=current_user, skip=skip, limit=limit, active_only=active_only
     )
+    if not current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only superusers can view all tenants",
+        )
     return tenants
 
 

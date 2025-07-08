@@ -43,10 +43,11 @@ class TestAuthCore:
                 "email": "newuser@example.com",
                 "password": "newpass123",
                 "full_name": "New User",
+                "tenant_name": "New Tenant",
             },
         )
 
-        assert response.status_code == status.HTTP_200_OK
+        assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
         assert data["username"] == "newuser"
         assert data["email"] == "newuser@example.com"
@@ -59,6 +60,7 @@ class TestAuthCore:
                 "username": "admin",
                 "email": "another@example.com",
                 "password": "newpass123",
+                "tenant_name": "Another Tenant",
             },
         )
 
@@ -77,7 +79,7 @@ class TestAuthCore:
         """Teste de obtenção do usuário atual sem autenticação"""
         response = client.get("/auth/me")
 
-        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_test_token_valid(self, client: TestClient, admin_auth_headers):
         """Teste de validação de token válido"""

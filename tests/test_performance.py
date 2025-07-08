@@ -200,7 +200,7 @@ class TestPerformance:
             f"Concurrent Requests Performance: {requests_per_second:.2f} req/s with {thread_count} threads"
         )
 
-    def test_database_query_performance(self, client, auth_headers, db_session):
+    def test_database_query_performance(self, client, auth_headers, db_session, sample_user):
         """Test database query performance"""
         from app.schemas.api_key import APIKeyCreate, APIKeyScope
         from app.services.api_key_service import APIKeyService
@@ -208,7 +208,6 @@ class TestPerformance:
         service = APIKeyService(db_session)
 
         # Create test data
-        user_id = 1  # Assuming test user exists
         created_keys = []
 
         start_time = time.time()
@@ -221,7 +220,7 @@ class TestPerformance:
             )
 
             api_key, _ = service.create_api_key(
-                api_key_data=api_key_data, user_id=user_id
+                api_key_data=api_key_data, current_user=sample_user
             )
             created_keys.append(api_key.id)
 
@@ -230,7 +229,7 @@ class TestPerformance:
         # Test query performance
         start_time = time.time()
 
-        api_keys = service.get_api_keys(user_id=user_id, limit=100)
+        api_keys = service.get_api_keys(current_user=sample_user, limit=100)
 
         query_time = time.time() - start_time
 
@@ -245,10 +244,10 @@ class TestPerformance:
 
         # Clean up
         for key_id in created_keys:
-            service.delete_api_key(key_id, user_id)
+            service.delete_api_key(key_id, current_user=sample_user)
 
     def test_memory_usage_under_load(self, client, auth_headers):
-        """Test memory usage under load"""
+        """Test memory usage under sustained load"""
         import os
 
         import psutil

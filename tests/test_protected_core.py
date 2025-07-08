@@ -26,7 +26,7 @@ class TestProtectedCore:
         """Teste de acesso ao perfil sem autenticação"""
         response = client.get("/protected/profile")
 
-        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_read_posts_authenticated(self, client: TestClient, admin_auth_headers):
         """Teste de leitura de posts com autenticação"""
@@ -42,7 +42,7 @@ class TestProtectedCore:
         """Teste de leitura de posts sem autenticação"""
         response = client.get("/protected/posts")
 
-        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_create_post_authenticated(self, client: TestClient, admin_auth_headers):
         """Teste de criação de post com autenticação"""
@@ -58,7 +58,7 @@ class TestProtectedCore:
         """Teste de criação de post sem autenticação"""
         response = client.post("/protected/posts/create")
 
-        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_access_settings_authenticated(
         self, client: TestClient, admin_auth_headers
@@ -76,7 +76,7 @@ class TestProtectedCore:
         """Teste de acesso a configurações sem autenticação"""
         response = client.get("/protected/settings")
 
-        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
 class TestProtectedPermissions:
@@ -94,13 +94,13 @@ class TestProtectedPermissions:
         for endpoint in protected_endpoints_get:
             response = client.get(endpoint)
             assert (
-                response.status_code == status.HTTP_403_FORBIDDEN
+                response.status_code == status.HTTP_401_UNAUTHORIZED
             ), f"Endpoint {endpoint} should require authentication"
 
         # Teste endpoint POST separadamente
         response = client.post("/protected/posts/create")
         assert (
-            response.status_code == status.HTTP_403_FORBIDDEN
+            response.status_code == status.HTTP_401_UNAUTHORIZED
         ), "POST endpoint should require authentication"
 
     def test_protected_endpoints_work_with_valid_token(

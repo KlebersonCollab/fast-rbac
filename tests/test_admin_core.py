@@ -27,7 +27,7 @@ class TestAdminUsersCore:
         """Teste de listagem de usuários sem autorização"""
         response = client.get("/admin/users")
 
-        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_get_user_by_id(self, client: TestClient, admin_auth_headers, admin_user):
         """Teste de obtenção de usuário por ID"""

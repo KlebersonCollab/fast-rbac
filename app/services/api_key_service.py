@@ -193,14 +193,13 @@ class APIKeyService:
     def get_api_key_usage(
         self,
         api_key_id: int,
-        user_id: int,
-        tenant_id: Optional[int] = None,
+        current_user: User,
         skip: int = 0,
         limit: int = 100,
     ) -> List[APIKeyUsage]:
         """Get API key usage history"""
         # Verify ownership
-        api_key = self.get_api_key(api_key_id, user_id, tenant_id)
+        api_key = self.get_api_key(api_key_id, current_user)
         if not api_key:
             return []
 
@@ -216,13 +215,12 @@ class APIKeyService:
     def get_api_key_stats(
         self,
         api_key_id: int,
-        user_id: int,
-        tenant_id: Optional[int] = None,
+        current_user: User,
         days: int = 30,
     ) -> Dict[str, Any]:
         """Get API key usage statistics"""
         # Verify ownership
-        api_key = self.get_api_key(api_key_id, user_id, tenant_id)
+        api_key = self.get_api_key(api_key_id, current_user)
         if not api_key:
             return {}
 
@@ -252,38 +250,52 @@ class APIKeyService:
             or 0
         )
 
+        failed_requests = total_requests - successful_requests
+
         # Average response time
         avg_response_time = (
             self.db.query(func.avg(APIKeyUsage.response_time_ms))
             .filter(
                 APIKeyUsage.api_key_id == api_key_id,
                 APIKeyUsage.timestamp >= start_date,
-                APIKeyUsage.response_time_ms.isnot(None),
             )
             .scalar()
+        )
+
+        # Requests per day
+        requests_by_day = (
+            self.db.query(
+                func.date(APIKeyUsage.timestamp), func.count(APIKeyUsage.id)
+            )
+            .filter(
+                APIKeyUsage.api_key_id == api_key_id,
+                APIKeyUsage.timestamp >= start_date,
+            )
+            .group_by(func.date(APIKeyUsage.timestamp))
+            .all()
         )
 
         # Most used endpoints
         most_used_endpoints = (
             self.db.query(
                 APIKeyUsage.endpoint,
-                APIKeyUsage.method,
                 func.count(APIKeyUsage.id).label("count"),
             )
             .filter(
                 APIKeyUsage.api_key_id == api_key_id,
                 APIKeyUsage.timestamp >= start_date,
             )
-            .group_by(APIKeyUsage.endpoint, APIKeyUsage.method)
+            .group_by(APIKeyUsage.endpoint)
             .order_by(func.count(APIKeyUsage.id).desc())
             .limit(10)
             .all()
         )
 
         # Status code distribution
-        status_distribution = (
+        status_code_distribution = (
             self.db.query(
-                APIKeyUsage.status_code, func.count(APIKeyUsage.id).label("count")
+                APIKeyUsage.status_code,
+                func.count(APIKeyUsage.id).label("count"),
             )
             .filter(
                 APIKeyUsage.api_key_id == api_key_id,
@@ -296,60 +308,74 @@ class APIKeyService:
         return {
             "total_requests": total_requests,
             "successful_requests": successful_requests,
-            "failed_requests": total_requests - successful_requests,
-            "average_response_time_ms": (
-                float(avg_response_time) if avg_response_time else None
-            ),
+            "failed_requests": failed_requests,
+            "average_response_time_ms": avg_response_time,
             "requests_per_hour": total_requests / (days * 24) if days > 0 else 0,
             "most_used_endpoints": [
-                {"endpoint": endpoint, "method": method, "count": count}
-                for endpoint, method, count in most_used_endpoints
+                {"endpoint": endpoint, "count": count}
+                for endpoint, count in most_used_endpoints
             ],
             "status_code_distribution": {
-                str(status_code): count for status_code, count in status_distribution
+                str(status_code): count
+                for status_code, count in status_code_distribution
             },
-            "usage_over_time": [],  # Empty for now, can be expanded later
+            "usage_over_time": [
+                {"date": str(day), "count": count} for day, count in requests_by_day
+            ],
         }
 
     def check_rate_limit(self, api_key: APIKey, window_minutes: int = 1) -> bool:
-        """Check if API key is within rate limits"""
+        """Check if an API key has exceeded its rate limit."""
         if not api_key.rate_limit_per_minute:
-            return True
+            return True  # No rate limit
 
-        # Get recent usage
-        since = datetime.utcnow() - timedelta(minutes=window_minutes)
-        recent_requests = (
+        # Get usage count in the time window
+        time_window = datetime.utcnow() - timedelta(minutes=window_minutes)
+        usage_count = (
             self.db.query(func.count(APIKeyUsage.id))
             .filter(
-                APIKeyUsage.api_key_id == api_key.id, APIKeyUsage.timestamp >= since
+                APIKeyUsage.api_key_id == api_key.id,
+                APIKeyUsage.timestamp >= time_window,
             )
             .scalar()
             or 0
         )
 
-        return recent_requests < api_key.rate_limit_per_minute
+        return usage_count < api_key.rate_limit_per_minute
 
     def rotate_api_key(
-        self, api_key_id: int, user_id: int, tenant_id: Optional[int] = None
-    ) -> tuple[APIKey, str]:
-        """Rotate (regenerate) an API key"""
-        api_key = self.get_api_key(api_key_id, user_id, tenant_id)
+        self, api_key_id: int, current_user: User
+    ) -> Optional[tuple[APIKey, str]]:
+        """Rotate an API key"""
+        # Verify ownership
+        api_key = self.get_api_key(api_key_id, current_user)
         if not api_key:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="API key not found"
-            )
+            return None
 
-        # Generate new key
+        # Generate a new key and hash
         full_key, key_hash = APIKey.generate_key()
         key_prefix = full_key[:12]
 
-        # Update API key
-        api_key.key_hash = key_hash
-        api_key.key_prefix = key_prefix
-        api_key.usage_count = 0
-        api_key.last_used_at = None
+        # Deactivate old key by setting an expiration date
+        api_key.expires_at = datetime.utcnow() + timedelta(days=1)
+        api_key.is_active = False
 
+        # Create a new API key with the same attributes but new credentials
+        new_api_key = APIKey(
+            name=api_key.name,
+            description=f"{api_key.description} (rotated)",
+            key_hash=key_hash,
+            key_prefix=key_prefix,
+            user_id=api_key.user_id,
+            tenant_id=api_key.tenant_id,
+            scopes=api_key.scopes,
+            permissions=api_key.permissions,
+            rate_limit_per_minute=api_key.rate_limit_per_minute,
+            is_active=True,
+        )
+
+        self.db.add(new_api_key)
         self.db.commit()
-        self.db.refresh(api_key)
+        self.db.refresh(new_api_key)
 
-        return api_key, full_key
+        return new_api_key, full_key

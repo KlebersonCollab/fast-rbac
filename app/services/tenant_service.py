@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, status
 from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.models.tenant import Tenant, TenantSettings
 from app.models.user import User
@@ -360,18 +361,25 @@ class TenantService:
         if not tenant:
             return False
 
-        tenant.set_feature(feature_name, True)
+        if tenant.features is None:
+            tenant.features = {}
+
+        tenant.features[feature_name] = True
+        flag_modified(tenant, "features")
         self.db.commit()
 
         return True
 
     def disable_tenant_feature(self, tenant_id: int, feature_name: str) -> bool:
-        """Disable a feature for tenant"""
+        """Disable a feature for a tenant"""
         tenant = self.get_tenant(tenant_id)
         if not tenant:
             return False
 
-        tenant.set_feature(feature_name, False)
-        self.db.commit()
+        if tenant.features and feature_name in tenant.features:
+            tenant.features[feature_name] = False
+            flag_modified(tenant, "features")
+            self.db.commit()
+            return True
 
-        return True
+        return False
