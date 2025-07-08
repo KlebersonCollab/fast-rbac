@@ -190,21 +190,69 @@ def show_warning(message: str):
     st.warning(message)
 
 
-def convert_timestamp_with_timezone(timestamp_str: str) -> str:
-    """Convert timestamp with timezone handling"""
-    if not timestamp_str:
+def convert_timestamp_with_timezone(timestamp_data):
+    """Convert timestamp with timezone handling - works with strings or pandas Series"""
+    if timestamp_data is None:
         return "N/A"
-    
+
+    import pandas as pd
+
+    # Se for uma Series do pandas, aplicar a função elemento por elemento
+    if isinstance(timestamp_data, pd.Series):
+        return timestamp_data.apply(lambda x: _convert_single_timestamp(x))
+
+    # Se for uma string, processar diretamente
+    return _convert_single_timestamp(timestamp_data)
+
+
+def _convert_single_timestamp(timestamp_str: str) -> str:
+    """Convert a single timestamp string"""
+    if not timestamp_str or pd.isna(timestamp_str):
+        return "N/A"
+
     try:
         import pandas as pd
+
         # Use pandas para parsing robusto de timestamps ISO8601
-        dt = pd.to_datetime(timestamp_str, format='ISO8601')
+        dt = pd.to_datetime(timestamp_str, format="ISO8601")
         return dt.strftime("%d/%m/%Y %H:%M")
     except Exception:
         try:
             # Fallback para parsing manual
-            clean_timestamp = timestamp_str.replace("Z", "+00:00")
+            clean_timestamp = str(timestamp_str).replace("Z", "+00:00")
             dt = datetime.fromisoformat(clean_timestamp)
             return dt.strftime("%d/%m/%Y %H:%M")
         except Exception:
-            return timestamp_str
+            return str(timestamp_str)
+
+
+def safe_json_loads(data, default=None):
+    """
+    Safely parse JSON data that might already be a Python object
+    
+    Args:
+        data: Data that might be a JSON string or already parsed object
+        default: Default value if parsing fails or data is None
+        
+    Returns:
+        Parsed data or default value
+    """
+    if default is None:
+        default = []
+        
+    if data is None:
+        return default
+        
+    # If already a list or dict, return as is
+    if isinstance(data, (list, dict)):
+        return data
+        
+    # If string, try to parse as JSON
+    if isinstance(data, str):
+        try:
+            import json
+            return json.loads(data)
+        except (json.JSONDecodeError, ValueError):
+            return default
+            
+    return default

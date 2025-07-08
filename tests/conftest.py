@@ -259,8 +259,72 @@ def admin_auth_headers(client, admin_user):
 
 
 @pytest.fixture
+def multi_tenant_setup(db_session, client):
+    """
+    Set up a multi-tenant environment with two distinct tenants and their users.
+    Each tenant has its own user, role, API key, and webhook.
+    """
+    from app.auth.utils import get_password_hash
+
+    # --- Tenant A Setup ---
+    tenant_a = Tenant(name="Tenant A", slug="tenant-a", plan_type="premium")
+    db_session.add(tenant_a)
+    db_session.commit()
+
+    user_a = User(
+        username="user_a",
+        email="a@tenant.com",
+        tenant_id=tenant_a.id,
+        hashed_password=get_password_hash("password_a"),
+    )
+    db_session.add(user_a)
+    db_session.commit()
+
+    key_a = APIKey(name="Key A", user_id=user_a.id, tenant_id=tenant_a.id, key_hash="hash_a", key_prefix="pre_a")
+    webhook_a = Webhook(name="Hook A", user_id=user_a.id, tenant_id=tenant_a.id, url="http://a.com", events='[]')
+    db_session.add_all([key_a, webhook_a])
+    db_session.commit()
+
+    # --- Tenant B Setup ---
+    tenant_b = Tenant(name="Tenant B", slug="tenant-b", plan_type="basic")
+    db_session.add(tenant_b)
+    db_session.commit()
+
+    user_b = User(
+        username="user_b",
+        email="b@tenant.com",
+        tenant_id=tenant_b.id,
+        hashed_password=get_password_hash("password_b"),
+    )
+    db_session.add(user_b)
+    db_session.commit()
+
+    key_b = APIKey(name="Key B", user_id=user_b.id, tenant_id=tenant_b.id, key_hash="hash_b", key_prefix="pre_b")
+    webhook_b = Webhook(name="Hook B", user_id=user_b.id, tenant_id=tenant_b.id, url="http://b.com", events='[]')
+    db_session.add_all([key_b, webhook_b])
+    db_session.commit()
+
+    # --- Login Users ---
+    token_a_res = client.post("/auth/login", json={"username": "user_a", "password": "password_a"})
+    token_b_res = client.post("/auth/login", json={"username": "user_b", "password": "password_b"})
+    
+    return {
+        "user_a": user_a,
+        "tenant_a": tenant_a,
+        "key_a": key_a,
+        "webhook_a": webhook_a,
+        "headers_a": {"Authorization": f"Bearer {token_a_res.json()['access_token']}"},
+        "user_b": user_b,
+        "tenant_b": tenant_b,
+        "key_b": key_b,
+        "webhook_b": webhook_b,
+        "headers_b": {"Authorization": f"Bearer {token_b_res.json()['access_token']}"},
+    }
+
+
+@pytest.fixture
 def temp_file():
-    """Create a temporary file for testing."""
+    """Create a temporary file for testing uploads."""
     with tempfile.NamedTemporaryFile(delete=False) as f:
         yield f.name
 

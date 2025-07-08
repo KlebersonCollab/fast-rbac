@@ -271,8 +271,32 @@ def init_roles(db: Session):
             db.commit()
 
 
-def init_admin_user(db: Session):
-    """Create default admin user"""
+def init_default_tenant(db: Session) -> Tenant:
+    """Create a default tenant if one doesn't exist"""
+    default_tenant = db.query(Tenant).filter(Tenant.name == "Default Tenant").first()
+    if not default_tenant:
+        default_tenant = Tenant(
+            name="Default Tenant",
+            slug="default-tenant",
+            description="The default tenant for system administration.",
+            is_active=True,
+            is_verified=True,
+            plan_type="enterprise",
+        )
+        db.add(default_tenant)
+        db.commit()
+        db.refresh(default_tenant)
+        
+        # Create default settings for this tenant
+        settings = TenantSettings(tenant_id=default_tenant.id)
+        db.add(settings)
+        db.commit()
+        
+    return default_tenant
+
+
+def init_admin_user(db: Session, default_tenant: Tenant):
+    """Create default admin user and associate with the default tenant"""
     admin_user = db.query(User).filter(User.username == "admin").first()
     if not admin_user:
         hashed_password = get_password_hash("admin123")
@@ -283,6 +307,7 @@ def init_admin_user(db: Session):
             hashed_password=hashed_password,
             is_superuser=True,
             provider="basic",
+            tenant_id=default_tenant.id,  # Associate with default tenant
         )
         db.add(admin_user)
         db.commit()
@@ -311,9 +336,12 @@ def initialize_database():
 
         print("Initializing roles...")
         init_roles(db)
+        
+        print("Initializing default tenant...")
+        default_tenant = init_default_tenant(db)
 
         print("Initializing admin user...")
-        init_admin_user(db)
+        init_admin_user(db, default_tenant)
 
         print("Database initialization completed!")
 

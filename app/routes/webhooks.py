@@ -20,20 +20,99 @@ from app.services.webhook_service import WebhookService
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
 
+@router.get("/delivery-logs", response_model=List[WebhookDeliveryResponse])
+async def get_all_delivery_logs(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get all webhook delivery logs for the current user"""
+    service = WebhookService(db)
+    # Get all webhooks for the user first
+    webhooks = service.get_webhooks(
+        user_id=current_user.id,
+        tenant_id=current_user.tenant_id,
+        skip=0,
+        limit=1000,
+    )
+
+    # Collect all deliveries from all webhooks
+    all_deliveries = []
+    for webhook in webhooks:
+        deliveries = service.get_webhook_deliveries(
+            webhook_id=webhook.id,
+            user_id=current_user.id,
+            tenant_id=current_user.tenant_id,
+            skip=0,
+            limit=50,  # Limit per webhook to avoid too much data
+        )
+        all_deliveries.extend(deliveries)
+
+    # Sort by creation date (newest first) and apply pagination
+    all_deliveries.sort(key=lambda x: x.created_at, reverse=True)
+    return all_deliveries[skip : skip + limit]
+
+
+@router.get("/analytics", response_model=dict)
+async def get_webhooks_analytics(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get webhook analytics for the current user"""
+    service = WebhookService(db)
+    webhooks = service.get_webhooks(
+        user_id=current_user.id,
+        tenant_id=current_user.tenant_id,
+        skip=0,
+        limit=1000,
+    )
+
+    # Calculate analytics
+    total_webhooks = len(webhooks)
+    active_webhooks = len([w for w in webhooks if w.is_active])
+    inactive_webhooks = total_webhooks - active_webhooks
+
+    # Calculate delivery stats
+    total_deliveries = 0
+    successful_deliveries = 0
+
+    for webhook in webhooks:
+        try:
+            stats = service.get_webhook_stats(
+                webhook_id=webhook.id,
+                user_id=current_user.id,
+                tenant_id=current_user.tenant_id,
+                days=30,
+            )
+            total_deliveries += stats.total_deliveries
+            successful_deliveries += stats.successful_deliveries
+        except:
+            pass
+
+    return {
+        "total_webhooks": total_webhooks,
+        "active_webhooks": active_webhooks,
+        "inactive_webhooks": inactive_webhooks,
+        "new_webhooks_this_month": 0,  # Simplified
+        "total_deliveries_30d": total_deliveries,
+        "successful_deliveries_30d": successful_deliveries,
+        "success_rate": (successful_deliveries / max(total_deliveries, 1)) * 100,
+        "top_webhooks": [{"name": w.name, "url": w.url} for w in webhooks[:5]],
+    }
+
+
 @router.post("/", response_model=WebhookResponse)
 async def create_webhook(
     webhook_data: WebhookCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Create a new webhook"""
+    """Create a new webhook for the current user's tenant."""
     service = WebhookService(db)
     webhook = service.create_webhook(
-        webhook_data=webhook_data,
-        user_id=current_user.id,
-        tenant_id=current_user.tenant_id,
+        webhook_data=webhook_data, current_user=current_user
     )
-
     return webhook
 
 
@@ -44,15 +123,9 @@ async def get_webhooks(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Get all webhooks for the current user"""
+    """Get all webhooks for the current user's tenant."""
     service = WebhookService(db)
-    webhooks = service.get_webhooks(
-        user_id=current_user.id,
-        tenant_id=current_user.tenant_id,
-        skip=skip,
-        limit=limit,
-    )
-
+    webhooks = service.get_webhooks(current_user=current_user, skip=skip, limit=limit)
     return webhooks
 
 
@@ -62,11 +135,9 @@ async def get_webhook(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Get a specific webhook"""
+    """Get a specific webhook within the user's tenant."""
     service = WebhookService(db)
-    webhook = service.get_webhook(
-        webhook_id=webhook_id, user_id=current_user.id, tenant_id=current_user.tenant_id
-    )
+    webhook = service.get_webhook(webhook_id=webhook_id, current_user=current_user)
 
     if not webhook:
         raise HTTPException(
@@ -83,13 +154,10 @@ async def update_webhook(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Update a webhook"""
+    """Update a webhook within the user's tenant."""
     service = WebhookService(db)
     webhook = service.update_webhook(
-        webhook_id=webhook_id,
-        webhook_data=webhook_data,
-        user_id=current_user.id,
-        tenant_id=current_user.tenant_id,
+        webhook_id=webhook_id, webhook_data=webhook_data, current_user=current_user
     )
 
     if not webhook:
@@ -106,11 +174,9 @@ async def delete_webhook(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Delete a webhook"""
+    """Delete a webhook within the user's tenant."""
     service = WebhookService(db)
-    success = service.delete_webhook(
-        webhook_id=webhook_id, user_id=current_user.id, tenant_id=current_user.tenant_id
-    )
+    success = service.delete_webhook(webhook_id=webhook_id, current_user=current_user)
 
     if not success:
         raise HTTPException(
@@ -127,12 +193,17 @@ async def test_webhook(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Test a webhook with a test event"""
+    """Test a webhook with a test event."""
     service = WebhookService(db)
+    # First, verify the user can access this webhook
+    webhook = service.get_webhook(webhook_id, current_user)
+    if not webhook:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Webhook not found"
+        )
+
     delivery = await service.test_webhook(
-        webhook_id=webhook_id,
-        user_id=current_user.id,
-        tenant_id=current_user.tenant_id,
+        webhook=webhook,
         event_type=test_request.event_type.value,
         test_data=test_request.test_data,
     )
@@ -148,16 +219,18 @@ async def get_webhook_deliveries(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Get webhook delivery history"""
+    """Get webhook delivery history."""
     service = WebhookService(db)
-    deliveries = service.get_webhook_deliveries(
-        webhook_id=webhook_id,
-        user_id=current_user.id,
-        tenant_id=current_user.tenant_id,
-        skip=skip,
-        limit=limit,
-    )
+    # First, verify the user can access this webhook
+    webhook = service.get_webhook(webhook_id, current_user)
+    if not webhook:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Webhook not found"
+        )
 
+    deliveries = service.get_webhook_deliveries(
+        webhook_id=webhook_id, skip=skip, limit=limit
+    )
     return deliveries
 
 
@@ -169,16 +242,16 @@ async def get_webhook_logs(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Get webhook logs"""
+    """Get webhook logs."""
     service = WebhookService(db)
-    logs = service.get_webhook_logs(
-        webhook_id=webhook_id,
-        user_id=current_user.id,
-        tenant_id=current_user.tenant_id,
-        skip=skip,
-        limit=limit,
-    )
+    # First, verify the user can access this webhook
+    webhook = service.get_webhook(webhook_id, current_user)
+    if not webhook:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Webhook not found"
+        )
 
+    logs = service.get_webhook_logs(webhook_id=webhook_id, skip=skip, limit=limit)
     return logs
 
 
@@ -189,15 +262,16 @@ async def get_webhook_stats(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Get webhook statistics"""
+    """Get webhook usage statistics."""
     service = WebhookService(db)
-    stats = service.get_webhook_stats(
-        webhook_id=webhook_id,
-        user_id=current_user.id,
-        tenant_id=current_user.tenant_id,
-        days=days,
-    )
+    # First, verify the user can access this webhook
+    webhook = service.get_webhook(webhook_id, current_user)
+    if not webhook:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Webhook not found"
+        )
 
+    stats = service.get_webhook_stats(webhook_id=webhook_id, days=days)
     return stats
 
 

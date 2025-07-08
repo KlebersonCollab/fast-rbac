@@ -9,36 +9,38 @@ from app.auth.service import AuthService
 from app.auth.utils import create_access_token
 from app.config.settings import settings
 from app.database.base import get_db
-from app.models.schemas import LoginRequest, Token, User, UserCreate
+from app.models.schemas import LoginRequest, Token, User, UserRegister
 
 router = APIRouter(tags=["authentication"])
 
 
 @router.post("/register", response_model=User)
-async def register(user_create: UserCreate, db: Session = Depends(get_db)):
-    """Register new user"""
+async def register(user_register: UserRegister, db: Session = Depends(get_db)):
+    """Register a new user and create a tenant for them."""
     auth_service = AuthService(db)
 
-    # Check if user already exists
-    if auth_service.get_user_by_username(user_create.username):
+    # Check for existing user/email first to provide clear errors
+    if auth_service.get_user_by_username(user_register.username):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username already registered",
         )
 
-    if auth_service.get_user_by_email(user_create.email):
+    if auth_service.get_user_by_email(user_register.email):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered"
         )
 
-    if not user_create.password:
+    try:
+        user = auth_service.create_user_and_tenant(user_register)
+        return user
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+    except Exception:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password is required for basic registration",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred during registration.",
         )
-
-    user = auth_service.create_user(user_create)
-    return user
 
 
 @router.post("/login", response_model=Token)
@@ -55,11 +57,19 @@ async def login(login_data: LoginRequest, db: Session = Depends(get_db)):
         )
 
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
+    
+    # Add user_id and tenant_id to the token payload
+    token_data = {
+        "sub": user.username,
+        "user_id": user.id,
+        "tenant_id": user.tenant_id
+    }
+    
     access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
+        data=token_data, expires_delta=access_token_expires
     )
 
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {"access_token": access_token, "token_type": "bearer", "user": user}
 
 
 @router.get("/me", response_model=User)

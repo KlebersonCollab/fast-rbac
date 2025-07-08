@@ -75,59 +75,57 @@ class TenantsView:
 
         # Buscar tenants
         try:
-            response = self.api_client.get("/tenants")
-            if response and response.get("status_code") == 200:
-                tenants = response.get("data", [])
+            tenants = self.api_client.get("/tenants/")
 
-                if not tenants:
-                    st.info("🏢 Nenhum tenant encontrado. Crie o primeiro!")
-                    return
+            if not tenants:
+                st.info("🏢 Nenhum tenant encontrado. Crie o primeiro!")
+                return
 
-                # Filtros
-                st.markdown("### 🔍 Filtros")
-                col1, col2, col3, col4 = st.columns(4)
+            # Filtros
+            st.markdown("### 🔍 Filtros")
+            col1, col2, col3, col4 = st.columns(4)
 
-                with col1:
-                    status_filter = st.selectbox(
-                        "Status",
-                        ["Todos", "Ativo", "Inativo", "Suspenso"],
-                        key="tenant_status_filter",
-                    )
-
-                with col2:
-                    plan_filter = st.selectbox(
-                        "Plano",
-                        ["Todos", "free", "basic", "premium", "enterprise"],
-                        key="plan_filter",
-                    )
-
-                with col3:
-                    verified_filter = st.selectbox(
-                        "Verificação",
-                        ["Todos", "Verificado", "Não Verificado"],
-                        key="verified_filter",
-                    )
-
-                with col4:
-                    sort_by = st.selectbox(
-                        "Ordenar por",
-                        ["Nome", "Data Criação", "Usuários", "Plano"],
-                        key="tenant_sort_by",
-                    )
-
-                # Filtrar dados
-                filtered_tenants = self._filter_tenants(
-                    tenants, status_filter, plan_filter, verified_filter
+            with col1:
+                status_filter = st.selectbox(
+                    "Status",
+                    ["Todos", "Ativo", "Inativo", "Suspenso"],
+                    key="tenant_status_filter",
                 )
 
-                # Exibir baseado no modo selecionado
-                if view_mode == "Tabela":
-                    self._render_tenants_table(filtered_tenants)
-                else:
-                    self._render_tenants_cards(filtered_tenants)
+            with col2:
+                plan_filter = st.selectbox(
+                    "Plano",
+                    ["Todos", "free", "basic", "premium", "enterprise"],
+                    key="plan_filter",
+                )
 
+            with col3:
+                verified_filter = st.selectbox(
+                    "Verificação",
+                    ["Todos", "Verificado", "Não Verificado"],
+                    key="verified_filter",
+                )
+
+            with col4:
+                sort_by = st.selectbox(
+                    "Ordenar por",
+                    ["Nome", "Data Criação", "Usuários", "Plano"],
+                    key="tenant_sort_by",
+                )
+
+            # Filtrar dados
+            filtered_tenants = self._filter_tenants(
+                tenants, status_filter, plan_filter, verified_filter
+            )
+
+            # Exibir baseado no modo selecionado
+            if view_mode == "Tabela":
+                self._render_tenants_table(filtered_tenants)
             else:
-                st.error("❌ Erro ao carregar tenants")
+                self._render_tenants_cards(filtered_tenants)
+
+            # Exibir ações rápidas
+            self._render_tenant_actions(filtered_tenants)
 
         except Exception as e:
             show_error(f"Erro ao carregar tenants: {str(e)}")
@@ -262,8 +260,8 @@ class TenantsView:
         # Seletor de tenant
         try:
             response = self.api_client.get("/tenants")
-            if response and response.get("status_code") == 200:
-                tenants = response.get("data", [])
+            if response:
+                tenants = response
 
                 if not tenants:
                     st.info("🏢 Nenhum tenant disponível")
@@ -291,64 +289,102 @@ class TenantsView:
 
         try:
             # Buscar estatísticas
-            stats_response = self.api_client.get("/tenants/analytics")
-            if stats_response and stats_response.get("status_code") == 200:
-                stats = stats_response.get("data", {})
+            stats = self.api_client.get("/tenants/analytics/")
 
-                # Métricas principais
-                col1, col2, col3, col4 = st.columns(4)
+            # Métricas principais
+            col1, col2, col3, col4 = st.columns(4)
 
-                with col1:
-                    st.metric(
-                        "Total Tenants",
-                        stats.get("total_tenants", 0),
-                        delta=stats.get("new_tenants_this_month", 0),
-                    )
+            with col1:
+                total_tenants = stats.get("total_tenants", 0) or 0
+                new_tenants = stats.get("new_tenants_this_month", 0) or 0
+                st.metric("Total Tenants", total_tenants, delta=new_tenants)
 
-                with col2:
-                    st.metric(
-                        "Tenants Ativos",
-                        stats.get("active_tenants", 0),
-                        delta=f"{stats.get('active_percentage', 0):.1f}%",
-                    )
+            with col2:
+                active_tenants = stats.get("active_tenants", 0) or 0
+                active_percentage = stats.get("active_percentage", 0) or 0
+                st.metric(
+                    "Tenants Ativos",
+                    active_tenants,
+                    delta=f"{active_percentage:.1f}%",
+                )
 
-                with col3:
-                    st.metric(
-                        "Total Usuários",
-                        stats.get("total_users", 0),
-                        delta=stats.get("new_users_this_month", 0),
-                    )
+            with col3:
+                total_users = stats.get("total_users", 0) or 0
+                new_users = stats.get("new_users_this_month", 0) or 0
+                st.metric("Total Usuários", total_users, delta=new_users)
 
-                with col4:
-                    st.metric(
-                        "Receita Mensal",
-                        f"R$ {stats.get('monthly_revenue', 0):,.2f}",
-                        delta=f"R$ {stats.get('revenue_growth', 0):,.2f}",
-                    )
+            with col4:
+                monthly_revenue = stats.get("monthly_revenue", 0) or 0
+                revenue_growth = stats.get("revenue_growth", 0) or 0
+                st.metric(
+                    "Receita Mensal",
+                    f"R$ {monthly_revenue:,.2f}",
+                    delta=f"R$ {revenue_growth:,.2f}",
+                )
 
-                # Gráficos
-                col1, col2 = st.columns(2)
+            # Gráficos
+            col1, col2 = st.columns(2)
 
-                with col1:
-                    if stats.get("tenant_growth_data"):
-                        st.markdown("### 📈 Crescimento de Tenants")
-                        growth_df = pd.DataFrame(stats["tenant_growth_data"])
-                        st.line_chart(growth_df.set_index("date"))
+            with col1:
+                st.markdown("### 📈 Crescimento de Tenants")
+                try:
+                    growth_data = stats.get("tenant_growth_data", [])
+                    if growth_data and isinstance(growth_data, list) and len(growth_data) > 0:
+                        # Verificar se o primeiro item tem as chaves necessárias
+                        first_item = growth_data[0]
+                        if isinstance(first_item, dict) and "date" in first_item and "tenants" in first_item:
+                            growth_df = pd.DataFrame(growth_data)
+                            # Converter date para datetime para melhor visualização
+                            growth_df['date'] = pd.to_datetime(growth_df['date'])
+                            st.line_chart(growth_df.set_index("date")["tenants"])
+                        else:
+                            st.info("📊 Formato de dados de crescimento inválido")
+                    else:
+                        st.info("📊 Dados de crescimento não disponíveis")
+                except Exception as e:
+                    st.error(f"Erro ao carregar gráfico de crescimento: {str(e)}")
 
-                with col2:
-                    if stats.get("plan_distribution"):
-                        st.markdown("### 📊 Distribuição por Plano")
-                        plan_df = pd.DataFrame(stats["plan_distribution"])
-                        st.bar_chart(plan_df.set_index("plan"))
+            with col2:
+                st.markdown("### 📊 Distribuição por Plano")
+                try:
+                    plan_data = stats.get("plan_distribution", [])
+                    if plan_data and isinstance(plan_data, list) and len(plan_data) > 0:
+                        # Verificar se o primeiro item tem as chaves necessárias
+                        first_item = plan_data[0]
+                        if isinstance(first_item, dict) and "plan" in first_item and "count" in first_item:
+                            plan_df = pd.DataFrame(plan_data)
+                            st.bar_chart(plan_df.set_index("plan")["count"])
+                        else:
+                            st.info("📊 Formato de dados de distribuição inválido")
+                    else:
+                        st.info("📊 Dados de distribuição não disponíveis")
+                except Exception as e:
+                    st.error(f"Erro ao carregar gráfico de distribuição: {str(e)}")
 
-                # Tabela de top tenants
-                if stats.get("top_tenants"):
-                    st.markdown("### 🏆 Top Tenants por Atividade")
-                    top_df = pd.DataFrame(stats["top_tenants"])
-                    st.dataframe(top_df, use_container_width=True)
-
-            else:
-                st.warning("⚠️ Não foi possível carregar analytics")
+            # Tabela de top tenants
+            st.markdown("### 🏆 Top Tenants por Atividade")
+            try:
+                top_tenants_data = stats.get("top_tenants", [])
+                if top_tenants_data and isinstance(top_tenants_data, list) and len(top_tenants_data) > 0:
+                    # Verificar se os dados têm a estrutura esperada
+                    first_item = top_tenants_data[0]
+                    if isinstance(first_item, dict) and "name" in first_item:
+                        top_df = pd.DataFrame(top_tenants_data)
+                        if not top_df.empty:
+                            # Renomear colunas para português
+                            top_df = top_df.rename(columns={
+                                "name": "Nome do Tenant",
+                                "users": "Usuários"
+                            })
+                            st.dataframe(top_df, use_container_width=True)
+                        else:
+                            st.info("📊 Nenhum tenant disponível para exibir")
+                    else:
+                        st.info("📊 Formato de dados dos top tenants inválido")
+                else:
+                    st.info("📊 Nenhum tenant disponível para exibir")
+            except Exception as e:
+                st.error(f"Erro ao carregar tabela de top tenants: {str(e)}")
 
         except Exception as e:
             show_error(f"Erro ao carregar analytics: {str(e)}")
@@ -359,73 +395,67 @@ class TenantsView:
 
         # Seletor de tenant
         try:
-            response = self.api_client.get("/tenants")
-            if response and response.get("status_code") == 200:
-                tenants = response.get("data", [])
+            tenants = self.api_client.get("/tenants/")
 
-                if not tenants:
-                    st.info("🏢 Nenhum tenant disponível")
-                    return
+            if not tenants:
+                st.info("🏢 Nenhum tenant disponível")
+                return
 
-                selected_tenant = st.selectbox(
-                    "Selecionar Tenant",
-                    options=[f"{t['name']} (ID: {t['id']})" for t in tenants],
-                    key="users_tenant_select",
-                )
+            selected_tenant = st.selectbox(
+                "Selecionar Tenant",
+                options=[f"{t['name']} (ID: {t['id']})" for t in tenants],
+                key="users_tenant_select",
+            )
 
-                if selected_tenant:
-                    tenant_id = int(selected_tenant.split("ID: ")[1].split(")")[0])
+            if selected_tenant:
+                tenant_id = int(selected_tenant.split("ID: ")[1].split(")")[0])
 
-                    # Buscar usuários do tenant
-                    users_response = self.api_client.get(f"/tenants/{tenant_id}/users")
-                    if users_response and users_response.get("status_code") == 200:
-                        users = users_response.get("data", [])
+                # Buscar usuários do tenant
+                users = self.api_client.get(f"/tenants/{tenant_id}/users")
 
-                        if users:
-                            # Exibir estatísticas rápidas
-                            col1, col2, col3 = st.columns(3)
-                            with col1:
-                                st.metric("Total Usuários", len(users))
-                            with col2:
-                                active_users = len(
-                                    [u for u in users if u.get("is_active")]
-                                )
-                                st.metric("Usuários Ativos", active_users)
-                            with col3:
-                                admin_users = len(
-                                    [u for u in users if u.get("is_superuser")]
-                                )
-                                st.metric("Administradores", admin_users)
+                if users:
+                    # Exibir estatísticas rápidas
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Total Usuários", len(users))
+                    with col2:
+                        active_users = len(
+                            [u for u in users if u.get("is_active")]
+                        )
+                        st.metric("Usuários Ativos", active_users)
+                    with col3:
+                        admin_users = len(
+                            [u for u in users if u.get("is_superuser")]
+                        )
+                        st.metric("Administradores", admin_users)
 
-                            # Tabela de usuários
-                            users_df = pd.DataFrame(
-                                [
-                                    {
-                                        "ID": u.get("id"),
-                                        "Nome": u.get("full_name", u.get("username")),
-                                        "Email": u.get("email"),
-                                        "Status": (
-                                            "🟢 Ativo"
-                                            if u.get("is_active")
-                                            else "🔴 Inativo"
-                                        ),
-                                        "Admin": "👑" if u.get("is_superuser") else "",
-                                        "Último Login": format_datetime(
-                                            u.get("last_login")
-                                        ),
-                                        "Criado em": format_datetime(
-                                            u.get("created_at")
-                                        ),
-                                    }
-                                    for u in users
-                                ]
-                            )
+                    # Tabela de usuários
+                    users_df = pd.DataFrame(
+                        [
+                            {
+                                "ID": u.get("id"),
+                                "Nome": u.get("full_name", u.get("username")),
+                                "Email": u.get("email"),
+                                "Status": (
+                                    "🟢 Ativo"
+                                    if u.get("is_active")
+                                    else "🔴 Inativo"
+                                ),
+                                "Admin": "👑" if u.get("is_superuser") else "",
+                                "Último Login": format_datetime(
+                                    u.get("last_login")
+                                ),
+                                "Criado em": format_datetime(
+                                    u.get("created_at")
+                                ),
+                            }
+                            for u in users
+                        ]
+                    )
 
-                            st.dataframe(users_df, use_container_width=True)
-                        else:
-                            st.info("👤 Nenhum usuário encontrado neste tenant")
-                    else:
-                        st.error("❌ Erro ao carregar usuários do tenant")
+                    st.dataframe(users_df, use_container_width=True)
+                else:
+                    st.info("👤 Nenhum usuário encontrado neste tenant")
 
         except Exception as e:
             show_error(f"Erro ao carregar usuários: {str(e)}")
@@ -480,9 +510,6 @@ class TenantsView:
             ],
             key="tenants_table",
         )
-
-        # Ações rápidas
-        self._render_tenant_actions(tenants)
 
     def _render_tenants_cards(self, tenants: List[Dict]):
         """Renderizar cards de tenants"""
@@ -651,34 +678,91 @@ class TenantsView:
         if selected_tenant:
             tenant_id = int(selected_tenant.split("ID: ")[1].split(")")[0])
 
+            # Limpar flags antigas (mais de 30 segundos) e de outros tenants
+            import time
+            current_time = time.time()
+            keys_to_remove = []
+            
+            for session_key in list(st.session_state.keys()):
+                if session_key.startswith(("confirm_delete_tenant_", "delete_clicked_tenant_", "delete_timestamp_tenant_")):
+                    try:
+                        session_tenant_id = int(session_key.split("_")[-1])
+                        # Se não é o tenant atual, limpar
+                        if session_tenant_id != tenant_id:
+                            keys_to_remove.append(session_key)
+                        # Se é timestamp antigo (>30 segundos), limpar
+                        elif session_key.startswith("delete_timestamp_tenant_"):
+                            timestamp = st.session_state.get(session_key, 0)
+                            if current_time - timestamp > 30:  # 30 segundos
+                                keys_to_remove.extend([
+                                    f"confirm_delete_tenant_{session_tenant_id}",
+                                    f"delete_clicked_tenant_{session_tenant_id}",
+                                    f"delete_timestamp_tenant_{session_tenant_id}"
+                                ])
+                    except (ValueError, IndexError):
+                        keys_to_remove.append(session_key)
+            
+            for key in keys_to_remove:
+                if key in st.session_state:
+                    del st.session_state[key]
+
             col1, col2, col3, col4 = st.columns(4)
 
             with col1:
-                if st.button("✅ Verificar"):
+                if st.button("✅ Verificar", key=f"verify_{tenant_id}"):
                     self._verify_tenant(tenant_id)
 
             with col2:
-                if st.button("⏸️ Suspender"):
+                if st.button("⏸️ Suspender", key=f"suspend_{tenant_id}"):
                     self._suspend_tenant(tenant_id)
 
             with col3:
-                if st.button("🔄 Reativar"):
+                if st.button("🔄 Reativar", key=f"activate_{tenant_id}"):
                     self._activate_tenant(tenant_id)
 
             with col4:
-                if st.button("🗑️ Deletar", type="secondary"):
-                    self._delete_tenant(tenant_id)
+                if st.button("🗑️ Deletar", key=f"delete_tenant_{tenant_id}", type="secondary"):
+                    # Marcar que o delete foi clicado especificamente agora
+                    st.session_state[f"delete_clicked_tenant_{tenant_id}"] = True
+                    st.session_state[f"confirm_delete_tenant_{tenant_id}"] = True
+                    st.session_state[f"delete_timestamp_tenant_{tenant_id}"] = current_time
+                    st.rerun()
+            
+            # Mostrar confirmação APENAS se o delete foi clicado recentemente
+            show_confirmation = (
+                st.session_state.get(f"confirm_delete_tenant_{tenant_id}", False) and 
+                st.session_state.get(f"delete_clicked_tenant_{tenant_id}", False) and
+                (current_time - st.session_state.get(f"delete_timestamp_tenant_{tenant_id}", 0)) <= 30  # 30 segundos
+            )
+            
+            if show_confirmation:
+                st.warning("⚠️ **ATENÇÃO**: Esta ação não pode ser desfeita! Todos os dados do tenant serão perdidos.")
+                col_yes, col_no = st.columns(2)
+                
+                with col_yes:
+                    if st.button("✅ Sim, deletar tenant", key=f"confirm_yes_tenant_{tenant_id}", type="primary"):
+                        self._execute_delete_tenant(tenant_id)
+                        # Limpar flags de confirmação
+                        st.session_state[f"confirm_delete_tenant_{tenant_id}"] = False
+                        st.session_state[f"delete_clicked_tenant_{tenant_id}"] = False
+                        st.session_state[f"delete_timestamp_tenant_{tenant_id}"] = 0
+                        
+                with col_no:
+                    if st.button("❌ Cancelar", key=f"confirm_no_tenant_{tenant_id}"):
+                        # Limpar flags de confirmação
+                        st.session_state[f"confirm_delete_tenant_{tenant_id}"] = False
+                        st.session_state[f"delete_clicked_tenant_{tenant_id}"] = False
+                        st.session_state[f"delete_timestamp_tenant_{tenant_id}"] = 0
+                        st.rerun()
 
     def _create_tenant(self, data: Dict):
         """Criar novo tenant"""
         try:
             response = self.api_client.post("/tenants", data)
-            if response and response.get("status_code") == 200:
+            if response:
                 show_success("🎉 Tenant criado com sucesso!")
                 time.sleep(1)
                 st.rerun()
-            else:
-                show_error("Erro ao criar tenant")
         except Exception as e:
             show_error(f"Erro ao criar tenant: {str(e)}")
 
@@ -686,10 +770,8 @@ class TenantsView:
         """Atualizar configurações do tenant"""
         try:
             response = self.api_client.put(f"/tenants/{tenant_id}", data)
-            if response and response.get("status_code") == 200:
+            if response:
                 show_success("✅ Configurações atualizadas com sucesso!")
-            else:
-                show_error("Erro ao atualizar configurações")
         except Exception as e:
             show_error(f"Erro ao atualizar configurações: {str(e)}")
 
@@ -697,11 +779,9 @@ class TenantsView:
         """Verificar tenant"""
         try:
             response = self.api_client.post(f"/tenants/{tenant_id}/verify")
-            if response and response.get("status_code") == 200:
+            if response:
                 show_success("✅ Tenant verificado com sucesso!")
                 st.rerun()
-            else:
-                show_error("Erro ao verificar tenant")
         except Exception as e:
             show_error(f"Erro ao verificar tenant: {str(e)}")
 
@@ -709,11 +789,9 @@ class TenantsView:
         """Suspender tenant"""
         try:
             response = self.api_client.post(f"/tenants/{tenant_id}/suspend")
-            if response and response.get("status_code") == 200:
+            if response:
                 show_success("⏸️ Tenant suspenso com sucesso!")
                 st.rerun()
-            else:
-                show_error("Erro ao suspender tenant")
         except Exception as e:
             show_error(f"Erro ao suspender tenant: {str(e)}")
 
@@ -721,26 +799,25 @@ class TenantsView:
         """Reativar tenant"""
         try:
             response = self.api_client.post(f"/tenants/{tenant_id}/activate")
-            if response and response.get("status_code") == 200:
+            if response:
                 show_success("🔄 Tenant reativado com sucesso!")
                 st.rerun()
-            else:
-                show_error("Erro ao reativar tenant")
         except Exception as e:
             show_error(f"Erro ao reativar tenant: {str(e)}")
 
-    def _delete_tenant(self, tenant_id: int):
-        """Deletar tenant"""
-        if st.button("⚠️ Confirmar Exclusão Definitiva", type="secondary"):
-            try:
-                response = self.api_client.delete(f"/tenants/{tenant_id}")
-                if response and response.get("status_code") == 200:
-                    show_success("🗑️ Tenant deletado com sucesso!")
-                    st.rerun()
-                else:
-                    show_error("Erro ao deletar tenant")
-            except Exception as e:
-                show_error(f"Erro ao deletar tenant: {str(e)}")
+    def _execute_delete_tenant(self, tenant_id: int):
+        """Executar a exclusão definitiva do tenant"""
+        try:
+            st.info(f"🔄 Deletando tenant ID: {tenant_id}...")
+            response = self.api_client.delete(f"/tenants/{tenant_id}")
+            if response:
+                show_success("🗑️ Tenant deletado com sucesso!")
+                time.sleep(1)
+                st.rerun()
+            else:
+                show_error("❌ Erro ao deletar tenant")
+        except Exception as e:
+            show_error(f"Erro ao deletar tenant: {str(e)}")
 
 
 def render_tenants_view():

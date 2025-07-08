@@ -1,11 +1,20 @@
 from typing import Optional
+import re
 
 from sqlalchemy.orm import Session
 
 from app.auth.utils import get_password_hash, verify_password
 from app.config.logging import get_auth_logger, log_auth_event, log_error
-from app.models.schemas import UserCreate
-from app.models.user import User
+from app.models.schemas import UserCreate, UserRegister
+from app.models.tenant import Tenant, TenantSettings
+from app.models.user import Role, User
+
+
+def slugify(text: str) -> str:
+    """Generate a URL-friendly slug from a string."""
+    text = text.lower()
+    text = re.sub(r'[\s\W]+', '-', text)  # Replace spaces and non-alphanumerics
+    return text.strip('-')
 
 
 class AuthService:
@@ -64,6 +73,70 @@ class AuthService:
     def get_user_by_id(self, user_id: int) -> Optional[User]:
         """Get user by ID"""
         return self.db.query(User).filter(User.id == user_id).first()
+
+    def create_user_and_tenant(self, user_register: UserRegister) -> User:
+        """
+        Create a new user and a new tenant for them.
+        This is a transactional operation.
+        """
+        try:
+            # 1. Create Tenant
+            tenant_slug = slugify(user_register.tenant_name)
+            existing_tenant = self.db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
+            if existing_tenant:
+                raise ValueError("A company with this name already exists.")
+
+            db_tenant = Tenant(
+                name=user_register.tenant_name,
+                slug=tenant_slug,
+                is_active=True,
+                is_verified=False,  # Can be verified later
+                plan_type='basic',  # Default plan
+            )
+            self.db.add(db_tenant)
+            self.db.flush()  # Flush to get the tenant ID
+
+            # 2. Create User
+            hashed_password = get_password_hash(user_register.password)
+            db_user = User(
+                username=user_register.username,
+                email=user_register.email,
+                full_name=user_register.full_name or user_register.username,
+                hashed_password=hashed_password,
+                is_active=True,
+                tenant_id=db_tenant.id,  # Associate with new tenant's ID
+                provider="basic",
+            )
+            self.db.add(db_user)
+            self.db.flush()  # Flush to get user ID
+
+            # 3. Create TenantSettings
+            db_settings = TenantSettings(tenant_id=db_tenant.id)
+            self.db.add(db_settings)
+
+            # 4. Assign 'admin' role to the new user (tenant owner)
+            admin_role = self.db.query(Role).filter(Role.name == "admin").first()
+            if admin_role:
+                db_user.roles.append(admin_role)
+            else:
+                self.logger.warning("Could not find 'admin' role to assign to new tenant owner.")
+
+            self.db.commit()
+            self.db.refresh(db_user)
+
+            log_auth_event(
+                "user_registered_with_tenant",
+                username=db_user.username,
+                user_id=db_user.id,
+                tenant_id=db_tenant.id,
+                tenant_name=db_tenant.name,
+                success=True,
+            )
+            return db_user
+        except Exception as e:
+            self.db.rollback()
+            log_error(e, "create_user_and_tenant", username=user_register.username)
+            raise
 
     def create_user(self, user_create: UserCreate) -> User:
         """Create new user"""

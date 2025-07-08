@@ -77,10 +77,23 @@ class TenantService:
         return self.db.query(Tenant).filter(Tenant.slug == slug).first()
 
     def get_tenants(
-        self, skip: int = 0, limit: int = 100, active_only: bool = False
+        self,
+        current_user: User,
+        skip: int = 0,
+        limit: int = 100,
+        active_only: bool = False,
     ) -> List[Tenant]:
-        """Get all tenants"""
+        """
+        Get tenants.
+        - Superusers can see all tenants.
+        - Regular users can only see their own tenant.
+        """
         query = self.db.query(Tenant)
+
+        if not current_user.is_superuser:
+            if not current_user.tenant_id:
+                return []  # No tenant assigned, can't see any
+            query = query.filter(Tenant.id == current_user.tenant_id)
 
         if active_only:
             query = query.filter(Tenant.is_active == True)
@@ -127,12 +140,21 @@ class TenantService:
         return tenant
 
     def delete_tenant(self, tenant_id: int) -> bool:
-        """Delete a tenant (soft delete by deactivating)"""
+        """Delete a tenant (hard delete - removes from database)"""
         tenant = self.get_tenant(tenant_id)
         if not tenant:
             return False
 
-        tenant.is_active = False
+        # Remove all users from this tenant first
+        users = self.db.query(User).filter(User.tenant_id == tenant_id).all()
+        for user in users:
+            user.tenant_id = None
+
+        # Delete tenant settings
+        self.db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).delete()
+
+        # Delete the tenant
+        self.db.delete(tenant)
         self.db.commit()
 
         return True

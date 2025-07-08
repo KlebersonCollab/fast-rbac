@@ -19,20 +19,55 @@ from app.services.api_key_service import APIKeyService
 router = APIRouter(prefix="/api-keys", tags=["api-keys"])
 
 
+@router.get("/stats", response_model=dict)
+async def get_api_keys_stats(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get global API keys statistics for the current user's tenant."""
+    service = APIKeyService(db)
+    api_keys = service.get_api_keys(current_user=current_user, limit=1000)
+
+    # Calculate aggregated stats
+    total_keys = len(api_keys)
+    active_keys = len([key for key in api_keys if key.is_active])
+    inactive_keys = total_keys - active_keys
+
+    # Calculate usage stats (simplified version)
+    total_requests = 0
+    for api_key in api_keys:
+        # Get usage for each key (last 30 days)
+        try:
+            stats = service.get_api_key_stats(
+                api_key_id=api_key.id,
+                user_id=current_user.id,
+                tenant_id=current_user.tenant_id,
+                days=30,
+            )
+            total_requests += stats.total_requests
+        except:
+            pass
+
+    return {
+        "total_keys": total_keys,
+        "active_keys": active_keys,
+        "inactive_keys": inactive_keys,
+        "total_requests_30d": total_requests,
+        "average_requests_per_key": total_requests / max(total_keys, 1),
+    }
+
+
 @router.post("/", response_model=APIKeyCreateResponse)
 async def create_api_key(
     api_key_data: APIKeyCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Create a new API key"""
+    """Create a new API key for the current user's tenant."""
     service = APIKeyService(db)
     api_key, key = service.create_api_key(
-        api_key_data=api_key_data,
-        user_id=current_user.id,
-        tenant_id=current_user.tenant_id,
+        api_key_data=api_key_data, current_user=current_user
     )
-
     return APIKeyCreateResponse(api_key=api_key, key=key)
 
 
@@ -43,15 +78,9 @@ async def get_api_keys(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Get all API keys for the current user"""
+    """Get all API keys for the current user's tenant."""
     service = APIKeyService(db)
-    api_keys = service.get_api_keys(
-        user_id=current_user.id,
-        tenant_id=current_user.tenant_id,
-        skip=skip,
-        limit=limit,
-    )
-
+    api_keys = service.get_api_keys(current_user=current_user, skip=skip, limit=limit)
     return api_keys
 
 
@@ -61,11 +90,9 @@ async def get_api_key(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Get a specific API key"""
+    """Get a specific API key within the user's tenant."""
     service = APIKeyService(db)
-    api_key = service.get_api_key(
-        api_key_id=api_key_id, user_id=current_user.id, tenant_id=current_user.tenant_id
-    )
+    api_key = service.get_api_key(api_key_id=api_key_id, current_user=current_user)
 
     if not api_key:
         raise HTTPException(
@@ -82,13 +109,10 @@ async def update_api_key(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Update an API key"""
+    """Update an API key within the user's tenant."""
     service = APIKeyService(db)
     api_key = service.update_api_key(
-        api_key_id=api_key_id,
-        api_key_data=api_key_data,
-        user_id=current_user.id,
-        tenant_id=current_user.tenant_id,
+        api_key_id=api_key_id, api_key_data=api_key_data, current_user=current_user
     )
 
     if not api_key:
@@ -105,11 +129,9 @@ async def delete_api_key(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Delete an API key"""
+    """Delete an API key within the user's tenant."""
     service = APIKeyService(db)
-    success = service.delete_api_key(
-        api_key_id=api_key_id, user_id=current_user.id, tenant_id=current_user.tenant_id
-    )
+    success = service.delete_api_key(api_key_id=api_key_id, current_user=current_user)
 
     if not success:
         raise HTTPException(
@@ -125,12 +147,11 @@ async def rotate_api_key(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Rotate (regenerate) an API key"""
+    """Rotate (regenerate) an API key within the user's tenant."""
     service = APIKeyService(db)
     api_key, new_key = service.rotate_api_key(
-        api_key_id=api_key_id, user_id=current_user.id, tenant_id=current_user.tenant_id
+        api_key_id=api_key_id, current_user=current_user
     )
-
     return APIKeyCreateResponse(api_key=api_key, key=new_key)
 
 
@@ -142,16 +163,18 @@ async def get_api_key_usage(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Get API key usage history"""
+    """Get API key usage history within the user's tenant."""
     service = APIKeyService(db)
+    # First, verify the user can access this key
+    key = service.get_api_key(api_key_id, current_user)
+    if not key:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="API key not found"
+        )
+    
     usage = service.get_api_key_usage(
-        api_key_id=api_key_id,
-        user_id=current_user.id,
-        tenant_id=current_user.tenant_id,
-        skip=skip,
-        limit=limit,
+        api_key_id=api_key_id, skip=skip, limit=limit
     )
-
     return usage
 
 
@@ -162,13 +185,52 @@ async def get_api_key_stats(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Get API key usage statistics"""
+    """Get API key usage statistics within the user's tenant."""
     service = APIKeyService(db)
-    stats = service.get_api_key_stats(
-        api_key_id=api_key_id,
-        user_id=current_user.id,
-        tenant_id=current_user.tenant_id,
-        days=days,
-    )
+    # First, verify the user can access this key
+    key = service.get_api_key(api_key_id, current_user)
+    if not key:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="API key not found"
+        )
 
+    stats = service.get_api_key_stats(api_key_id=api_key_id, days=days)
     return stats
+
+
+@router.get("/stats", response_model=dict)
+async def get_api_keys_stats(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get global API keys statistics for the current user's tenant."""
+    service = APIKeyService(db)
+    api_keys = service.get_api_keys(current_user=current_user, limit=1000)
+
+    # Calculate aggregated stats
+    total_keys = len(api_keys)
+    active_keys = len([key for key in api_keys if key.is_active])
+    inactive_keys = total_keys - active_keys
+
+    # Calculate usage stats (simplified version)
+    total_requests = 0
+    for api_key in api_keys:
+        # Get usage for each key (last 30 days)
+        try:
+            stats = service.get_api_key_stats(
+                api_key_id=api_key.id,
+                user_id=current_user.id,
+                tenant_id=current_user.tenant_id,
+                days=30,
+            )
+            total_requests += stats.total_requests
+        except:
+            pass
+
+    return {
+        "total_keys": total_keys,
+        "active_keys": active_keys,
+        "inactive_keys": inactive_keys,
+        "total_requests_30d": total_requests,
+        "average_requests_per_key": total_requests / max(total_keys, 1),
+    }

@@ -23,23 +23,14 @@ class WebhookService:
         self.db = db
 
     def create_webhook(
-        self, webhook_data: WebhookCreate, user_id: int, tenant_id: Optional[int] = None
+        self, webhook_data: WebhookCreate, current_user: User
     ) -> Webhook:
-        """Create a new webhook"""
-        # Check if user exists
-        user = self.db.query(User).filter(User.id == user_id).first()
-        if not user:
+        """Create a new webhook for the current user's tenant."""
+        if not current_user.tenant_id:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User is not associated with a tenant.",
             )
-
-        # Check tenant if specified
-        if tenant_id:
-            tenant = self.db.query(Tenant).filter(Tenant.id == tenant_id).first()
-            if not tenant:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found"
-                )
 
         # Generate secret if not provided
         secret = webhook_data.secret
@@ -58,8 +49,8 @@ class WebhookService:
             retry_enabled=webhook_data.retry_enabled,
             max_retries=webhook_data.max_retries,
             retry_delay_seconds=webhook_data.retry_delay_seconds,
-            user_id=user_id,
-            tenant_id=tenant_id,
+            user_id=current_user.id,
+            tenant_id=current_user.tenant_id,
         )
 
         self.db.add(webhook)
@@ -68,43 +59,33 @@ class WebhookService:
 
         return webhook
 
-    def get_webhook(
-        self, webhook_id: int, user_id: int, tenant_id: Optional[int] = None
-    ) -> Optional[Webhook]:
-        """Get webhook by ID"""
-        query = self.db.query(Webhook).filter(
-            Webhook.id == webhook_id, Webhook.user_id == user_id
-        )
+    def get_webhook(self, webhook_id: int, current_user: User) -> Optional[Webhook]:
+        """Get a webhook by ID, scoped to the user's tenant."""
+        query = self.db.query(Webhook).filter(Webhook.id == webhook_id)
 
-        if tenant_id:
-            query = query.filter(Webhook.tenant_id == tenant_id)
+        if not current_user.is_superuser:
+            query = query.filter(Webhook.tenant_id == current_user.tenant_id)
 
         return query.first()
 
     def get_webhooks(
-        self,
-        user_id: int,
-        tenant_id: Optional[int] = None,
-        skip: int = 0,
-        limit: int = 100,
+        self, current_user: User, skip: int = 0, limit: int = 100
     ) -> List[Webhook]:
-        """Get all webhooks for a user"""
-        query = self.db.query(Webhook).filter(Webhook.user_id == user_id)
+        """Get all webhooks for the user's tenant."""
+        query = self.db.query(Webhook)
 
-        if tenant_id:
-            query = query.filter(Webhook.tenant_id == tenant_id)
+        if not current_user.is_superuser:
+            if not current_user.tenant_id:
+                return []
+            query = query.filter(Webhook.tenant_id == current_user.tenant_id)
 
-        return query.offset(skip).limit(limit).all()
+        return query.order_by(Webhook.created_at.desc()).offset(skip).limit(limit).all()
 
     def update_webhook(
-        self,
-        webhook_id: int,
-        webhook_data: WebhookUpdate,
-        user_id: int,
-        tenant_id: Optional[int] = None,
+        self, webhook_id: int, webhook_data: WebhookUpdate, current_user: User
     ) -> Optional[Webhook]:
-        """Update a webhook"""
-        webhook = self.get_webhook(webhook_id, user_id, tenant_id)
+        """Update a webhook."""
+        webhook = self.get_webhook(webhook_id, current_user)
         if not webhook:
             return None
 
@@ -137,11 +118,9 @@ class WebhookService:
 
         return webhook
 
-    def delete_webhook(
-        self, webhook_id: int, user_id: int, tenant_id: Optional[int] = None
-    ) -> bool:
-        """Delete a webhook"""
-        webhook = self.get_webhook(webhook_id, user_id, tenant_id)
+    def delete_webhook(self, webhook_id: int, current_user: User) -> bool:
+        """Delete a webhook."""
+        webhook = self.get_webhook(webhook_id, current_user)
         if not webhook:
             return False
 

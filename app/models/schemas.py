@@ -20,6 +20,10 @@ class UserCreate(UserBase):
     provider_id: Optional[str] = None
 
 
+class UserRegister(UserCreate):
+    tenant_name: str
+
+
 class UserUpdate(BaseModel):
     username: Optional[str] = None
     email: Optional[EmailStr] = None

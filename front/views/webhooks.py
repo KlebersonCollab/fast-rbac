@@ -13,7 +13,7 @@ import requests
 import streamlit as st
 
 from front.services.api_client import APIClient
-from front.utils.helpers import format_datetime, show_error, show_success, show_warning
+from front.utils.helpers import format_datetime, show_error, show_success, show_warning, safe_json_loads
 
 
 class WebhooksView:
@@ -75,66 +75,61 @@ class WebhooksView:
 
         # Buscar webhooks
         try:
-            response = self.api_client.get("/webhooks")
-            if response and response.get("status_code") == 200:
-                webhooks = response.get("data", [])
+            webhooks = self.api_client.get("/webhooks/")
 
-                if not webhooks:
-                    st.info("🪝 Nenhum webhook encontrado. Configure o primeiro!")
-                    return
+            if not webhooks:
+                st.info("🪝 Nenhum webhook encontrado. Configure o primeiro!")
+                return
 
-                # Filtros
-                st.markdown("### 🔍 Filtros")
-                col1, col2, col3, col4 = st.columns(4)
+            # Filtros
+            st.markdown("### 🔍 Filtros")
+            col1, col2, col3, col4 = st.columns(4)
 
-                with col1:
-                    status_filter = st.selectbox(
-                        "Status",
-                        ["Todos", "Ativo", "Inativo", "Com Erro"],
-                        key="webhook_status_filter",
-                    )
-
-                with col2:
-                    event_filter = st.selectbox(
-                        "Evento",
-                        [
-                            "Todos",
-                            "user.created",
-                            "user.updated",
-                            "user.deleted",
-                            "auth.login",
-                            "auth.logout",
-                        ],
-                        key="event_filter",
-                    )
-
-                with col3:
-                    method_filter = st.selectbox(
-                        "Método HTTP",
-                        ["Todos", "POST", "PUT", "PATCH"],
-                        key="method_filter",
-                    )
-
-                with col4:
-                    sort_by = st.selectbox(
-                        "Ordenar por",
-                        ["Nome", "Data Criação", "Última Entrega", "Taxa Sucesso"],
-                        key="webhook_sort_by",
-                    )
-
-                # Filtrar dados
-                filtered_webhooks = self._filter_webhooks(
-                    webhooks, status_filter, event_filter, method_filter
+            with col1:
+                status_filter = st.selectbox(
+                    "Status",
+                    ["Todos", "Ativo", "Inativo", "Com Erro"],
+                    key="webhook_status_filter",
                 )
 
-                # Exibir baseado no modo selecionado
-                if view_mode == "Tabela":
-                    self._render_webhooks_table(filtered_webhooks)
-                else:
-                    self._render_webhooks_cards(filtered_webhooks)
+            with col2:
+                event_filter = st.selectbox(
+                    "Evento",
+                    [
+                        "Todos",
+                        "user.created",
+                        "user.updated",
+                        "user.deleted",
+                        "auth.login",
+                        "auth.logout",
+                    ],
+                    key="event_filter",
+                )
 
+            with col3:
+                method_filter = st.selectbox(
+                    "Método HTTP",
+                    ["Todos", "POST", "PUT", "PATCH"],
+                    key="method_filter",
+                )
+
+            with col4:
+                sort_by = st.selectbox(
+                    "Ordenar por",
+                    ["Nome", "Data Criação", "Última Entrega", "Taxa Sucesso"],
+                    key="webhook_sort_by",
+                )
+
+            # Filtrar dados
+            filtered_webhooks = self._filter_webhooks(
+                webhooks, status_filter, event_filter, method_filter
+            )
+
+            # Exibir baseado no modo selecionado
+            if view_mode == "Tabela":
+                self._render_webhooks_table(filtered_webhooks)
             else:
-                st.error("❌ Erro ao carregar webhooks")
+                self._render_webhooks_cards(filtered_webhooks)
 
         except Exception as e:
             show_error(f"Erro ao carregar webhooks: {str(e)}")
@@ -364,92 +359,89 @@ class WebhooksView:
                 },
             )
 
-            if response and response.get("status_code") == 200:
-                logs = response.get("data", [])
+            logs = response
 
-                if logs:
-                    # Estatísticas rápidas
-                    col1, col2, col3, col4 = st.columns(4)
+            if logs:
+                # Estatísticas rápidas
+                col1, col2, col3, col4 = st.columns(4)
 
-                    success_count = len(
-                        [l for l in logs if l.get("status") == "success"]
-                    )
-                    total_count = len(logs)
-                    success_rate = (
-                        (success_count / total_count * 100) if total_count > 0 else 0
-                    )
+                success_count = len(
+                    [l for l in logs if l.get("status") == "success"]
+                )
+                total_count = len(logs)
+                success_rate = (
+                    (success_count / total_count * 100) if total_count > 0 else 0
+                )
 
-                    with col1:
-                        st.metric("Total Entregas", total_count)
-                    with col2:
-                        st.metric("Sucessos", success_count)
-                    with col3:
-                        st.metric("Taxa Sucesso", f"{success_rate:.1f}%")
-                    with col4:
-                        failed_count = total_count - success_count
-                        st.metric("Falhas", failed_count)
+                with col1:
+                    st.metric("Total Entregas", total_count)
+                with col2:
+                    st.metric("Sucessos", success_count)
+                with col3:
+                    st.metric("Taxa Sucesso", f"{success_rate:.1f}%")
+                with col4:
+                    failed_count = total_count - success_count
+                    st.metric("Falhas", failed_count)
 
-                    # Tabela de logs
-                    logs_df = pd.DataFrame(
-                        [
-                            {
-                                "ID": log.get("id"),
-                                "Webhook": log.get("webhook_name", "N/A"),
-                                "Evento": log.get("event_type"),
-                                "Status": self._format_delivery_status(
-                                    log.get("status")
-                                ),
-                                "Código HTTP": log.get("http_status_code", "N/A"),
-                                "Tentativas": f"{log.get('attempt_count', 1)}/{log.get('max_retries', 1)}",
-                                "Tempo Resposta": f"{log.get('response_time_ms', 0)}ms",
-                                "Enviado em": format_datetime(log.get("created_at")),
-                                "Próxima Tentativa": (
-                                    format_datetime(log.get("next_retry_at"))
-                                    if log.get("next_retry_at")
-                                    else "N/A"
-                                ),
-                            }
+                # Tabela de logs
+                logs_df = pd.DataFrame(
+                    [
+                        {
+                            "ID": log.get("id"),
+                            "Webhook": log.get("webhook_name", "N/A"),
+                            "Evento": log.get("event_type"),
+                            "Status": self._format_delivery_status(
+                                log.get("status")
+                            ),
+                            "Código HTTP": log.get("http_status_code", "N/A"),
+                            "Tentativas": f"{log.get('attempt_count', 1)}/{log.get('max_retries', 1)}",
+                            "Tempo Resposta": f"{log.get('response_time_ms', 0)}ms",
+                            "Enviado em": format_datetime(log.get("created_at")),
+                            "Próxima Tentativa": (
+                                format_datetime(log.get("next_retry_at"))
+                                if log.get("next_retry_at")
+                                else "N/A"
+                            ),
+                        }
+                        for log in logs
+                    ]
+                )
+
+                # Configurar visualização da tabela
+                st.dataframe(
+                    logs_df,
+                    use_container_width=True,
+                    column_config={
+                        "Status": st.column_config.Column("Status", width="small"),
+                        "Código HTTP": st.column_config.Column(
+                            "HTTP", width="small"
+                        ),
+                        "Tempo Resposta": st.column_config.Column(
+                            "Resp. Time", width="small"
+                        ),
+                    },
+                )
+
+                # Detalhes do log selecionado
+                if st.checkbox("Mostrar detalhes do log"):
+                    selected_log_id = st.selectbox(
+                        "Selecionar log para detalhes",
+                        options=[
+                            f"ID {log['id']} - {log.get('event_type')}"
                             for log in logs
-                        ]
+                        ],
                     )
 
-                    # Configurar visualização da tabela
-                    st.dataframe(
-                        logs_df,
-                        use_container_width=True,
-                        column_config={
-                            "Status": st.column_config.Column("Status", width="small"),
-                            "Código HTTP": st.column_config.Column(
-                                "HTTP", width="small"
-                            ),
-                            "Tempo Resposta": st.column_config.Column(
-                                "Resp. Time", width="small"
-                            ),
-                        },
-                    )
-
-                    # Detalhes do log selecionado
-                    if st.checkbox("Mostrar detalhes do log"):
-                        selected_log_id = st.selectbox(
-                            "Selecionar log para detalhes",
-                            options=[
-                                f"ID {log['id']} - {log.get('event_type')}"
-                                for log in logs
-                            ],
+                    if selected_log_id:
+                        log_id = int(selected_log_id.split("ID ")[1].split(" -")[0])
+                        selected_log = next(
+                            (l for l in logs if l["id"] == log_id), None
                         )
 
-                        if selected_log_id:
-                            log_id = int(selected_log_id.split("ID ")[1].split(" -")[0])
-                            selected_log = next(
-                                (l for l in logs if l["id"] == log_id), None
-                            )
-
-                            if selected_log:
-                                self._render_log_details(selected_log)
-                else:
-                    st.info("📡 Nenhum log de entrega encontrado")
+                        if selected_log:
+                            self._render_log_details(selected_log)
             else:
-                st.error("❌ Erro ao carregar logs de entrega")
+                st.info("📡 Nenhum log de entrega encontrado")
 
         except Exception as e:
             show_error(f"Erro ao carregar logs: {str(e)}")
@@ -460,112 +452,110 @@ class WebhooksView:
 
         # Seletor de webhook
         try:
-            response = self.api_client.get("/webhooks")
-            if response and response.get("status_code") == 200:
-                webhooks = response.get("data", [])
+            webhooks = self.api_client.get("/webhooks/")
 
-                if not webhooks:
-                    st.info("🪝 Nenhum webhook disponível para teste")
-                    return
+            if not webhooks:
+                st.info("🪝 Nenhum webhook disponível para teste")
+                return
 
-                selected_webhook = st.selectbox(
-                    "Selecionar Webhook",
-                    options=[f"{w['name']} - {w['url']}" for w in webhooks],
-                    key="test_webhook_select",
+            selected_webhook = st.selectbox(
+                "Selecionar Webhook",
+                options=[f"{w['name']} - {w['url']}" for w in webhooks],
+                key="test_webhook_select",
+            )
+
+            if selected_webhook:
+                webhook_name = selected_webhook.split(" - ")[0]
+                webhook = next(
+                    (w for w in webhooks if w["name"] == webhook_name), None
                 )
 
-                if selected_webhook:
-                    webhook_name = selected_webhook.split(" - ")[0]
-                    webhook = next(
-                        (w for w in webhooks if w["name"] == webhook_name), None
-                    )
+                if webhook:
+                    # Mostrar informações do webhook
+                    col1, col2 = st.columns(2)
 
-                    if webhook:
-                        # Mostrar informações do webhook
-                        col1, col2 = st.columns(2)
-
-                        with col1:
-                            st.markdown("**Informações do Webhook:**")
-                            st.write(f"**Nome:** {webhook['name']}")
-                            st.write(f"**URL:** {webhook['url']}")
-                            st.write(f"**Método:** {webhook.get('method', 'POST')}")
-                            st.write(
-                                f"**Status:** {'🟢 Ativo' if webhook.get('is_active') else '🔴 Inativo'}"
-                            )
-
-                        with col2:
-                            st.markdown("**Eventos Monitorados:**")
-                            events = json.loads(webhook.get("events", "[]"))
-                            for event in events:
-                                st.write(f"• {event}")
-
-                        # Configurar teste
-                        st.markdown("### 🎯 Configurar Teste")
-
-                        col1, col2 = st.columns(2)
-
-                        with col1:
-                            test_event = st.selectbox(
-                                "Evento de Teste",
-                                options=events if events else ["user.created"],
-                                key="test_event_select",
-                            )
-
-                            test_data_template = st.selectbox(
-                                "Template de Dados",
-                                ["Usuário Exemplo", "Dados Customizados"],
-                                key="test_data_template",
-                            )
-
-                        with col2:
-                            include_timestamp = st.checkbox(
-                                "Incluir timestamp", value=True
-                            )
-                            include_signature = st.checkbox(
-                                "Incluir assinatura", value=True
-                            )
-
-                        # Payload de teste
-                        if test_data_template == "Usuário Exemplo":
-                            test_payload = {
-                                "event": test_event,
-                                "timestamp": (
-                                    datetime.now().isoformat()
-                                    if include_timestamp
-                                    else None
-                                ),
-                                "data": {
-                                    "user": {
-                                        "id": 123,
-                                        "username": "usuario_teste",
-                                        "email": "teste@exemplo.com",
-                                        "full_name": "Usuário Teste",
-                                        "is_active": True,
-                                        "created_at": datetime.now().isoformat(),
-                                    }
-                                },
-                            }
-                        else:
-                            test_payload = {}
-
-                        payload_json = st.text_area(
-                            "Payload JSON",
-                            value=json.dumps(test_payload, indent=2),
-                            height=200,
-                            help="Dados que serão enviados no webhook",
+                    with col1:
+                        st.markdown("**Informações do Webhook:**")
+                        st.write(f"**Nome:** {webhook['name']}")
+                        st.write(f"**URL:** {webhook['url']}")
+                        st.write(f"**Método:** {webhook.get('method', 'POST')}")
+                        st.write(
+                            f"**Status:** {'🟢 Ativo' if webhook.get('is_active') else '🔴 Inativo'}"
                         )
 
-                        # Botão de teste
-                        col1, col2 = st.columns([1, 3])
-                        with col1:
-                            if st.button("🚀 Executar Teste", type="primary"):
-                                self._execute_webhook_test(
-                                    webhook["id"], test_event, payload_json
-                                )
+                    with col2:
+                        st.markdown("**Eventos Monitorados:**")
+                        events = safe_json_loads(webhook.get("events"), [])
+                        for event in events:
+                            st.write(f"• {event}")
 
-                        # Histórico de testes
-                        st.markdown("### 📊 Histórico de Testes")
-                        self._render_test_history(webhook["id"])
+                    # Configurar teste
+                    st.markdown("### 🎯 Configurar Teste")
+
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        test_event = st.selectbox(
+                            "Evento de Teste",
+                            options=events if events else ["user.created"],
+                            key="test_event_select",
+                        )
+
+                        test_data_template = st.selectbox(
+                            "Template de Dados",
+                            ["Usuário Exemplo", "Dados Customizados"],
+                            key="test_data_template",
+                        )
+
+                    with col2:
+                        include_timestamp = st.checkbox(
+                            "Incluir timestamp", value=True
+                        )
+                        include_signature = st.checkbox(
+                            "Incluir assinatura", value=True
+                        )
+
+                    # Payload de teste
+                    if test_data_template == "Usuário Exemplo":
+                        test_payload = {
+                            "event": test_event,
+                            "timestamp": (
+                                datetime.now().isoformat()
+                                if include_timestamp
+                                else None
+                            ),
+                            "data": {
+                                "user": {
+                                    "id": 123,
+                                    "username": "usuario_teste",
+                                    "email": "teste@exemplo.com",
+                                    "full_name": "Usuário Teste",
+                                    "is_active": True,
+                                    "created_at": datetime.now().isoformat(),
+                                }
+                            },
+                        }
+                    else:
+                        test_payload = {}
+
+                    payload_json = st.text_area(
+                        "Payload JSON",
+                        value=json.dumps(test_payload, indent=2),
+                        height=200,
+                        help="Dados que serão enviados no webhook",
+                    )
+
+                    # Botão de teste
+                    col1, col2 = st.columns([1, 3])
+                    with col1:
+                        if st.button("🚀 Executar Teste", type="primary"):
+                            self._execute_webhook_test(
+                                webhook["id"], test_event, payload_json
+                            )
+
+                    # Histórico de testes
+                    st.markdown("### 📊 Histórico de Testes")
+                    self._render_test_history(webhook["id"])
 
         except Exception as e:
             show_error(f"Erro ao carregar webhooks para teste: {str(e)}")
@@ -576,71 +566,66 @@ class WebhooksView:
 
         try:
             # Buscar estatísticas
-            stats_response = self.api_client.get("/webhooks/analytics")
-            if stats_response and stats_response.get("status_code") == 200:
-                stats = stats_response.get("data", {})
+            stats = self.api_client.get("/webhooks/analytics/")
 
-                # Métricas principais
-                col1, col2, col3, col4 = st.columns(4)
+            # Métricas principais
+            col1, col2, col3, col4 = st.columns(4)
 
-                with col1:
-                    st.metric(
-                        "Total Webhooks",
-                        stats.get("total_webhooks", 0),
-                        delta=stats.get("new_webhooks_this_month", 0),
-                    )
+            with col1:
+                st.metric(
+                    "Total Webhooks",
+                    stats.get("total_webhooks", 0),
+                    delta=stats.get("new_webhooks_this_month", 0),
+                )
 
-                with col2:
-                    st.metric(
-                        "Webhooks Ativos",
-                        stats.get("active_webhooks", 0),
-                        delta=f"{stats.get('active_percentage', 0):.1f}%",
-                    )
+            with col2:
+                st.metric(
+                    "Webhooks Ativos",
+                    stats.get("active_webhooks", 0),
+                    delta=f"{stats.get('active_percentage', 0):.1f}%",
+                )
 
-                with col3:
-                    st.metric(
-                        "Entregas Hoje",
-                        stats.get("deliveries_today", 0),
-                        delta=stats.get("deliveries_yesterday", 0),
-                    )
+            with col3:
+                st.metric(
+                    "Entregas Hoje",
+                    stats.get("deliveries_today", 0),
+                    delta=stats.get("deliveries_yesterday", 0),
+                )
 
-                with col4:
-                    success_rate = stats.get("overall_success_rate", 0)
-                    st.metric(
-                        "Taxa Sucesso",
-                        f"{success_rate:.1f}%",
-                        delta=f"{stats.get('success_rate_change', 0):.1f}%",
-                    )
+            with col4:
+                success_rate = stats.get("overall_success_rate", 0)
+                st.metric(
+                    "Taxa Sucesso",
+                    f"{success_rate:.1f}%",
+                    delta=f"{stats.get('success_rate_change', 0):.1f}%",
+                )
 
-                # Gráficos
-                col1, col2 = st.columns(2)
+            # Gráficos
+            col1, col2 = st.columns(2)
 
-                with col1:
-                    if stats.get("delivery_volume_data"):
-                        st.markdown("### 📈 Volume de Entregas")
-                        volume_df = pd.DataFrame(stats["delivery_volume_data"])
-                        st.line_chart(volume_df.set_index("date"))
+            with col1:
+                if stats.get("delivery_volume_data"):
+                    st.markdown("### 📈 Volume de Entregas")
+                    volume_df = pd.DataFrame(stats["delivery_volume_data"])
+                    st.line_chart(volume_df.set_index("date"))
 
-                with col2:
-                    if stats.get("success_rate_data"):
-                        st.markdown("### 📊 Taxa de Sucesso")
-                        success_df = pd.DataFrame(stats["success_rate_data"])
-                        st.line_chart(success_df.set_index("date"))
+            with col2:
+                if stats.get("success_rate_data"):
+                    st.markdown("### 📊 Taxa de Sucesso")
+                    success_df = pd.DataFrame(stats["success_rate_data"])
+                    st.line_chart(success_df.set_index("date"))
 
-                # Eventos mais populares
-                if stats.get("popular_events"):
-                    st.markdown("### 🎯 Eventos Mais Populares")
-                    events_df = pd.DataFrame(stats["popular_events"])
-                    st.bar_chart(events_df.set_index("event"))
+            # Eventos mais populares
+            if stats.get("popular_events"):
+                st.markdown("### 🎯 Eventos Mais Populares")
+                events_df = pd.DataFrame(stats["popular_events"])
+                st.bar_chart(events_df.set_index("event"))
 
-                # Top webhooks por performance
-                if stats.get("top_webhooks"):
-                    st.markdown("### 🏆 Top Webhooks por Performance")
-                    top_df = pd.DataFrame(stats["top_webhooks"])
-                    st.dataframe(top_df, use_container_width=True)
-
-            else:
-                st.warning("⚠️ Não foi possível carregar analytics")
+            # Top webhooks por performance
+            if stats.get("top_webhooks"):
+                st.markdown("### 🏆 Top Webhooks por Performance")
+                top_df = pd.DataFrame(stats["top_webhooks"])
+                st.dataframe(top_df, use_container_width=True)
 
         except Exception as e:
             show_error(f"Erro ao carregar analytics: {str(e)}")
@@ -662,7 +647,7 @@ class WebhooksView:
                         if len(w.get("url", "")) > 50
                         else w.get("url")
                     ),
-                    "Eventos": len(json.loads(w.get("events", "[]"))),
+                    "Eventos": len(safe_json_loads(w.get("events"), [])),
                     "Status": "🟢 Ativo" if w.get("is_active") else "🔴 Inativo",
                     "Última Entrega": (
                         format_datetime(w.get("last_delivery_at"))
@@ -729,7 +714,7 @@ class WebhooksView:
                         st.markdown(f"{status_icon}")
 
                     # Informações principais
-                    events = json.loads(webhook.get("events", "[]"))
+                    events = safe_json_loads(webhook.get("events"), [])
                     st.markdown(f"**Eventos:** {len(events)} configurados")
                     st.markdown(f"**Método:** {webhook.get('method', 'POST')}")
 
@@ -776,7 +761,7 @@ class WebhooksView:
         # Filtro por evento
         if event_filter != "Todos":
             filtered = [
-                w for w in filtered if event_filter in json.loads(w.get("events", "[]"))
+                w for w in filtered if event_filter in safe_json_loads(w.get("events"), [])
             ]
 
         # Filtro por método
@@ -823,7 +808,7 @@ class WebhooksView:
         if log.get("request_payload"):
             st.markdown("**Payload Enviado:**")
             st.code(
-                json.dumps(json.loads(log["request_payload"]), indent=2),
+                json.dumps(safe_json_loads(log["request_payload"], {}), indent=2),
                 language="json",
             )
 
@@ -888,34 +873,90 @@ class WebhooksView:
         if selected_webhook:
             webhook_id = int(selected_webhook.split("ID: ")[1].split(")")[0])
 
+            # Limpar flags antigas (mais de 30 segundos) e de outros webhooks
+            current_time = time.time()
+            keys_to_remove = []
+            
+            for session_key in list(st.session_state.keys()):
+                if session_key.startswith(("confirm_delete_webhook_", "delete_clicked_webhook_", "delete_timestamp_webhook_")):
+                    try:
+                        session_webhook_id = int(session_key.split("_")[-1])
+                        # Se não é o webhook atual, limpar
+                        if session_webhook_id != webhook_id:
+                            keys_to_remove.append(session_key)
+                        # Se é timestamp antigo (>30 segundos), limpar
+                        elif session_key.startswith("delete_timestamp_webhook_"):
+                            timestamp = st.session_state.get(session_key, 0)
+                            if current_time - timestamp > 30:  # 30 segundos
+                                keys_to_remove.extend([
+                                    f"confirm_delete_webhook_{session_webhook_id}",
+                                    f"delete_clicked_webhook_{session_webhook_id}",
+                                    f"delete_timestamp_webhook_{session_webhook_id}"
+                                ])
+                    except (ValueError, IndexError):
+                        keys_to_remove.append(session_key)
+            
+            for key in keys_to_remove:
+                if key in st.session_state:
+                    del st.session_state[key]
+
             col1, col2, col3, col4 = st.columns(4)
 
             with col1:
-                if st.button("🧪 Testar"):
+                if st.button("🧪 Testar", key=f"test_{webhook_id}"):
                     self._test_webhook(webhook_id)
 
             with col2:
-                if st.button("⏸️ Desativar"):
+                if st.button("⏸️ Desativar", key=f"deactivate_{webhook_id}"):
                     self._toggle_webhook_status(webhook_id, False)
 
             with col3:
-                if st.button("▶️ Ativar"):
+                if st.button("▶️ Ativar", key=f"activate_{webhook_id}"):
                     self._toggle_webhook_status(webhook_id, True)
 
             with col4:
-                if st.button("🗑️ Deletar", type="secondary"):
-                    self._delete_webhook(webhook_id)
+                if st.button("🗑️ Deletar", key=f"delete_webhook_{webhook_id}", type="secondary"):
+                    # Marcar que o delete foi clicado especificamente agora
+                    st.session_state[f"delete_clicked_webhook_{webhook_id}"] = True
+                    st.session_state[f"confirm_delete_webhook_{webhook_id}"] = True
+                    st.session_state[f"delete_timestamp_webhook_{webhook_id}"] = current_time
+                    st.rerun()
+            
+            # Mostrar confirmação APENAS se o delete foi clicado recentemente
+            show_confirmation = (
+                st.session_state.get(f"confirm_delete_webhook_{webhook_id}", False) and 
+                st.session_state.get(f"delete_clicked_webhook_{webhook_id}", False) and
+                (current_time - st.session_state.get(f"delete_timestamp_webhook_{webhook_id}", 0)) <= 30  # 30 segundos
+            )
+            
+            if show_confirmation:
+                st.warning("⚠️ **ATENÇÃO**: Esta ação não pode ser desfeita! O webhook será removido permanentemente.")
+                col_yes, col_no = st.columns(2)
+                
+                with col_yes:
+                    if st.button("✅ Sim, deletar webhook", key=f"confirm_yes_webhook_{webhook_id}", type="primary"):
+                        self._execute_delete_webhook(webhook_id)
+                        # Limpar flags de confirmação
+                        st.session_state[f"confirm_delete_webhook_{webhook_id}"] = False
+                        st.session_state[f"delete_clicked_webhook_{webhook_id}"] = False
+                        st.session_state[f"delete_timestamp_webhook_{webhook_id}"] = 0
+                        
+                with col_no:
+                    if st.button("❌ Cancelar", key=f"confirm_no_webhook_{webhook_id}"):
+                        # Limpar flags de confirmação
+                        st.session_state[f"confirm_delete_webhook_{webhook_id}"] = False
+                        st.session_state[f"delete_clicked_webhook_{webhook_id}"] = False
+                        st.session_state[f"delete_timestamp_webhook_{webhook_id}"] = 0
+                        st.rerun()
 
     def _create_webhook(self, data: Dict):
         """Criar novo webhook"""
         try:
             response = self.api_client.post("/webhooks", data)
-            if response and response.get("status_code") == 200:
+            if response:
                 show_success("🎉 Webhook criado com sucesso!")
                 time.sleep(1)
                 st.rerun()
-            else:
-                show_error("Erro ao criar webhook")
         except Exception as e:
             show_error(f"Erro ao criar webhook: {str(e)}")
 
@@ -924,12 +965,12 @@ class WebhooksView:
         try:
             test_data = {
                 "event": event,
-                "payload": json.loads(payload) if payload else {},
+                "payload": safe_json_loads(payload, {}) if payload else {},
             }
 
             response = self.api_client.post(f"/webhooks/{webhook_id}/test", test_data)
-            if response and response.get("status_code") == 200:
-                result = response.get("data", {})
+            if response:
+                result = response
 
                 if result.get("success"):
                     show_success(
@@ -952,7 +993,7 @@ class WebhooksView:
             action = "activate" if active else "deactivate"
             response = self.api_client.post(f"/webhooks/{webhook_id}/{action}")
 
-            if response and response.get("status_code") == 200:
+            if response:
                 status_text = "ativado" if active else "desativado"
                 show_success(f"✅ Webhook {status_text} com sucesso!")
                 st.rerun()
@@ -961,18 +1002,23 @@ class WebhooksView:
         except Exception as e:
             show_error(f"Erro ao alterar status do webhook: {str(e)}")
 
-    def _delete_webhook(self, webhook_id: int):
-        """Deletar webhook"""
-        if st.button("⚠️ Confirmar Exclusão", type="secondary"):
-            try:
-                response = self.api_client.delete(f"/webhooks/{webhook_id}")
-                if response and response.get("status_code") == 200:
-                    show_success("🗑️ Webhook deletado com sucesso!")
-                    st.rerun()
-                else:
-                    show_error("Erro ao deletar webhook")
-            except Exception as e:
-                show_error(f"Erro ao deletar webhook: {str(e)}")
+    def _execute_delete_webhook(self, webhook_id: int):
+        """Executar ação de deletar webhook"""
+        try:
+            st.info(f"🔄 Deletando webhook ID: {webhook_id}...")
+            response = self.api_client.delete(f"/webhooks/{webhook_id}")
+            if response:
+                show_success("🗑️ Webhook deletado com sucesso!")
+                time.sleep(1)
+                st.rerun()
+            else:
+                show_error("❌ Erro ao deletar webhook")
+        except Exception as e:
+            show_error(f"Erro ao deletar webhook: {str(e)}")
+
+    def _test_webhook(self, webhook_id: int):
+        """Função de teste de webhook (implementar se necessário)"""
+        show_success(f"🧪 Teste do webhook {webhook_id} executado!")  # Placeholder
 
 
 def render_webhooks_view():

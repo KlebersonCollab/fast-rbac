@@ -120,14 +120,21 @@ class AuthService:
 
     @staticmethod
     def register(
-        username: str, email: str, password: str, full_name: str = None
+        username: str,
+        email: str,
+        password: str,
+        full_name: str,
+        tenant_name: str,
     ) -> bool:
-        """Register new user"""
+        """Register new user and tenant."""
         try:
-            response = api_client.register(username, email, password, full_name)
+            response = api_client.register(
+                username, email, password, full_name, tenant_name
+            )
 
             # Optionally auto-login after registration
             if response:
+                st.success("Cadastro realizado com sucesso! Fazendo login...")
                 return AuthService.login(username, password)
 
             return True

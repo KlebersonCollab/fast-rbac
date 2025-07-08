@@ -26,29 +26,27 @@ class APIKeyService:
         self.db = db
 
     def create_api_key(
-        self, api_key_data: APIKeyCreate, user_id: int, tenant_id: Optional[int] = None
+        self, api_key_data: APIKeyCreate, current_user: User
     ) -> tuple[APIKey, str]:
-        """Create a new API key"""
-        # Check if user exists
-        user = self.db.query(User).filter(User.id == user_id).first()
-        if not user:
+        """Create a new API key for the current user's tenant."""
+        if not current_user.tenant_id:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User is not associated with a tenant.",
             )
 
-        # Check tenant limits if applicable
-        if tenant_id:
-            tenant = self.db.query(Tenant).filter(Tenant.id == tenant_id).first()
-            if not tenant:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found"
-                )
+        # Check tenant limits
+        tenant = self.db.query(Tenant).filter(Tenant.id == current_user.tenant_id).first()
+        if not tenant:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found"
+            )
 
-            if not tenant.can_add_api_key():
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="API key limit reached for this tenant",
-                )
+        if not tenant.can_add_api_key():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="API key limit reached for this tenant",
+            )
 
         # Generate API key
         full_key, key_hash = APIKey.generate_key()
@@ -60,8 +58,8 @@ class APIKeyService:
             description=api_key_data.description,
             key_hash=key_hash,
             key_prefix=key_prefix,
-            user_id=user_id,
-            tenant_id=tenant_id,
+            user_id=current_user.id,
+            tenant_id=current_user.tenant_id,
             scopes=json.dumps(api_key_data.scopes),
             permissions=(
                 json.dumps(api_key_data.permissions)
@@ -78,43 +76,33 @@ class APIKeyService:
 
         return api_key, full_key
 
-    def get_api_key(
-        self, api_key_id: int, user_id: int, tenant_id: Optional[int] = None
-    ) -> Optional[APIKey]:
-        """Get API key by ID"""
-        query = self.db.query(APIKey).filter(
-            APIKey.id == api_key_id, APIKey.user_id == user_id
-        )
+    def get_api_key(self, api_key_id: int, current_user: User) -> Optional[APIKey]:
+        """Get API key by ID, scoped to the user's tenant."""
+        query = self.db.query(APIKey).filter(APIKey.id == api_key_id)
 
-        if tenant_id:
-            query = query.filter(APIKey.tenant_id == tenant_id)
+        if not current_user.is_superuser:
+            query = query.filter(APIKey.tenant_id == current_user.tenant_id)
 
         return query.first()
 
     def get_api_keys(
-        self,
-        user_id: int,
-        tenant_id: Optional[int] = None,
-        skip: int = 0,
-        limit: int = 100,
+        self, current_user: User, skip: int = 0, limit: int = 100
     ) -> List[APIKey]:
-        """Get all API keys for a user"""
-        query = self.db.query(APIKey).filter(APIKey.user_id == user_id)
+        """Get all API keys for the user's tenant."""
+        query = self.db.query(APIKey)
+        
+        if not current_user.is_superuser:
+            if not current_user.tenant_id:
+                return []
+            query = query.filter(APIKey.tenant_id == current_user.tenant_id)
 
-        if tenant_id:
-            query = query.filter(APIKey.tenant_id == tenant_id)
-
-        return query.offset(skip).limit(limit).all()
+        return query.order_by(APIKey.created_at.desc()).offset(skip).limit(limit).all()
 
     def update_api_key(
-        self,
-        api_key_id: int,
-        api_key_data: APIKeyUpdate,
-        user_id: int,
-        tenant_id: Optional[int] = None,
+        self, api_key_id: int, api_key_data: APIKeyUpdate, current_user: User
     ) -> Optional[APIKey]:
-        """Update an API key"""
-        api_key = self.get_api_key(api_key_id, user_id, tenant_id)
+        """Update an API key."""
+        api_key = self.get_api_key(api_key_id, current_user)
         if not api_key:
             return None
 
@@ -139,11 +127,9 @@ class APIKeyService:
 
         return api_key
 
-    def delete_api_key(
-        self, api_key_id: int, user_id: int, tenant_id: Optional[int] = None
-    ) -> bool:
-        """Delete an API key"""
-        api_key = self.get_api_key(api_key_id, user_id, tenant_id)
+    def delete_api_key(self, api_key_id: int, current_user: User) -> bool:
+        """Delete an API key."""
+        api_key = self.get_api_key(api_key_id, current_user)
         if not api_key:
             return False
 

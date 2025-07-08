@@ -75,7 +75,7 @@ class Webhook(Base):
 
     # Ownership
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
 
     # Audit
     created_at = Column(DateTime, server_default=func.now())

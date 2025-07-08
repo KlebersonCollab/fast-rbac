@@ -37,7 +37,7 @@ class APIKey(Base):
     # Ownership
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     tenant_id = Column(
-        Integer, ForeignKey("tenants.id"), nullable=True
+        Integer, ForeignKey("tenants.id"), nullable=False
     )  # Multi-tenancy
 
     # Permissions and scopes

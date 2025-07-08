@@ -42,14 +42,18 @@ def login_form():
 
 def register_form():
     """Display registration form"""
-    st.markdown("### 📝 Cadastro de Usuário")
+    st.markdown("### 📝 Crie sua Conta e sua Empresa")
 
     with st.form("register_form"):
-        username = st.text_input("Usuário", placeholder="Escolha um nome de usuário")
-        email = st.text_input("Email", placeholder="seu@email.com")
-        full_name = st.text_input("Nome Completo", placeholder="Seu nome completo")
+        tenant_name = st.text_input(
+            "Nome da Empresa", placeholder="O nome da sua organização"
+        )
+        st.markdown("---")
+        full_name = st.text_input("Seu Nome Completo", placeholder="Como devemos te chamar?")
+        username = st.text_input("Usuário", placeholder="Escolha um nome de usuário para o login")
+        email = st.text_input("Email de Contato", placeholder="seu@email.com")
         password = st.text_input(
-            "Senha", type="password", placeholder="Escolha uma senha"
+            "Senha", type="password", placeholder="Escolha uma senha segura"
         )
         password_confirm = st.text_input(
             "Confirmar Senha", type="password", placeholder="Confirme sua senha"
@@ -66,14 +70,16 @@ def register_form():
             back_to_login = st.form_submit_button("⬅️ Voltar", use_container_width=True)
 
     if register_submitted:
-        if not all([username, email, password]):
+        if not all([username, email, password, tenant_name]):
             st.warning("Por favor, preencha todos os campos obrigatórios.")
         elif password != password_confirm:
             st.error("As senhas não coincidem!")
         elif len(password) < 6:
             st.warning("A senha deve ter pelo menos 6 caracteres.")
         else:
-            if auth_service.register(username, email, password, full_name):
+            if auth_service.register(
+                username, email, password, full_name, tenant_name
+            ):
                 st.session_state.show_register = False
                 st.rerun()
 
