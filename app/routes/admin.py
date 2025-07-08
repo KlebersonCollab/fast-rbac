@@ -10,7 +10,7 @@ from app.models.schemas import (
     RoleCreate, RoleUpdate, PermissionCreate, PermissionUpdate
 )
 
-router = APIRouter(prefix="/admin", tags=["admin"])
+router = APIRouter(tags=["admin"])
 
 
 # User management endpoints

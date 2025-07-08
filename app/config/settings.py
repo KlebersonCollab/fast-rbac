@@ -2,6 +2,7 @@ from pydantic_settings import BaseSettings
 from pydantic import Field, validator
 from typing import Optional, List
 import os
+from urllib.parse import urlparse
 
 
 class Settings(BaseSettings):
@@ -113,6 +114,40 @@ class Settings(BaseSettings):
         elif self.database_url.startswith("mysql"):
             return "mysql"
         return "unknown"
+
+    @property
+    def redis_host(self) -> str:
+        """Extract Redis host from URL"""
+        parsed = urlparse(self.redis_url)
+        return parsed.hostname or "localhost"
+    
+    @property
+    def redis_port(self) -> int:
+        """Extract Redis port from URL"""
+        parsed = urlparse(self.redis_url)
+        return parsed.port or 6379
+    
+    @property
+    def redis_db(self) -> int:
+        """Extract Redis database from URL"""
+        parsed = urlparse(self.redis_url)
+        if parsed.path and parsed.path.startswith("/"):
+            try:
+                return int(parsed.path[1:])
+            except ValueError:
+                return 0
+        return 0
+    
+    @property
+    def redis_password(self) -> Optional[str]:
+        """Extract Redis password from URL"""
+        parsed = urlparse(self.redis_url)
+        return parsed.password
+    
+    @property
+    def redis_max_connections(self) -> int:
+        """Redis max connections for connection pool"""
+        return 20
 
     class Config:
         env_file = ".env"

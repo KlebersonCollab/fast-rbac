@@ -232,11 +232,11 @@ class APIClient:
     
     def read_posts(self) -> Dict[str, Any]:
         """Read posts"""
-        return self._make_request("GET", "/protected/read-posts")
+        return self._make_request("GET", "/protected/posts")
     
     def create_post(self) -> Dict[str, Any]:
         """Create post"""
-        return self._make_request("POST", "/protected/create-post")
+        return self._make_request("POST", "/protected/posts/create")
     
     def access_settings(self) -> Dict[str, Any]:
         """Access settings"""

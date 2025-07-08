@@ -1,15 +1,25 @@
-# FastAPI RBAC - Sistema de Autenticação e Autorização
+# FastAPI RBAC - Sistema Enterprise de Autenticação e Autorização
 
-Uma aplicação FastAPI completa com sistema RBAC (Role-Based Access Control), múltiplos provedores de autenticação e recursos enterprise de performance e segurança.
+Uma aplicação **FastAPI enterprise-grade** com sistema RBAC completo, autenticação 2FA, múltiplos provedores OAuth, cache Redis, rate limiting e interface administrativa Streamlit.
 
 ## 🚀 Características
 
-### 🔐 **Autenticação & Autorização**
+### 🔐 **Autenticação & Autorização (NÍVEL 1)**
 - ✅ **Autenticação Múltipla**: Login básico (username/password) e OAuth2
-- ✅ **Provedores OAuth**: Google, Microsoft, GitHub
-- ✅ **Sistema RBAC**: Controle de acesso baseado em roles e permissões
+- ✅ **Provedores OAuth**: Google, Microsoft, GitHub configurados
+- ✅ **Sistema RBAC Completo**: Controle de acesso baseado em roles e permissões
 - ✅ **JWT Tokens**: Autenticação segura via tokens JWT
 - ✅ **Hierarquia Superadmin**: Sistema de super usuários
+- ✅ **Validação de Token**: Middleware de autenticação robusto
+
+### 🔑 **2FA Authentication (NÍVEL 3)**
+- ✅ **TOTP 2FA**: Autenticação de dois fatores com TOTP
+- ✅ **QR Code Generation**: Geração de QR codes para configuração
+- ✅ **Backup Codes**: Códigos de backup criptografados
+- ✅ **Anti-Replay Protection**: Prevenção de ataques de replay
+- ✅ **Enterprise Security**: Criptografia de secrets com Fernet
+- ✅ **Google Authenticator**: Compatível com apps padrão
+- ✅ **Recovery System**: Sistema completo de recuperação
 
 ### ⚡ **Performance & Cache (NÍVEL 2)**
 - ✅ **Redis Integration**: Cache distribuído e sessions
@@ -18,372 +28,332 @@ Uma aplicação FastAPI completa com sistema RBAC (Role-Based Access Control), m
 - ✅ **Session Management**: Sessions distribuídos com Redis
 - ✅ **Query Result Caching**: Cache de resultados de consultas
 - ✅ **Connection Pooling**: Pool de conexões otimizado
+- ✅ **Cache Statistics**: Métricas detalhadas de performance
 
 ### 🛡️ **Segurança & Rate Limiting**
-- ✅ **Advanced Rate Limiting**: Rate limiting inteligente por endpoint
-- ✅ **Adaptive Rate Limiting**: Ajusta limites baseado na carga do sistema
-- ✅ **Circuit Breaker Pattern**: Proteção contra cascading failures
+- ✅ **Advanced Rate Limiting**: Rate limiting por tipo de endpoint
+- ✅ **Adaptive Rate Limiting**: Ajusta limites baseado na carga
+- ✅ **Circuit Breaker Pattern**: Proteção contra falhas em cascata
 - ✅ **Multi-Level Protection**: Rate limiting por usuário, IP e endpoint
 - ✅ **Security Middleware**: TrustedHost, GZIP, CORS configuráveis
+- ✅ **Rate Limit Headers**: Headers de monitoramento de limites
 
 ### 🖥️ **Interface & Monitoring**
 - ✅ **Frontend Administrativo**: Interface Streamlit completa
 - ✅ **Dashboard Interativo**: Métricas em tempo real
+- ✅ **RBAC Management**: Gerenciamento visual de usuários/roles/permissões
 - ✅ **Cache Monitoring**: Endpoints de monitoramento de cache
 - ✅ **Performance Testing**: Testes de performance integrados
 - ✅ **Health Checks**: Monitoramento de saúde do sistema
+- ✅ **Logs Dashboard**: Dashboard de logs do sistema
 
 ### 🗄️ **Database & Infrastructure**
 - ✅ **SQLAlchemy ORM**: PostgreSQL/SQLite support
 - ✅ **Alembic Migrations**: Sistema de migração de banco
 - ✅ **Docker Support**: Containerização completa
 - ✅ **Production Ready**: Configurações para produção
+- ✅ **Database Initialization**: Scripts de inicialização automática
 
 ## 📋 Pré-requisitos
 
-- Python 3.11+
-- UV (gerenciador de pacotes)
-- Redis (opcional, para cache distribuído)
-- PostgreSQL (opcional, para produção)
+- **Python 3.11+**
+- **UV** (gerenciador de pacotes Python)
+- **Redis** (opcional, para cache distribuído)
+- **PostgreSQL** (opcional, para produção)
 
-## 🛠️ Instalação
+## 🛠️ Instalação Rápida
 
-1. **Clone o repositório**:
+### 1. Clone e Configure
 ```bash
 git clone <repositorio>
-cd fast-rbac
+cd fast+rbac
+cp env.example .env
 ```
 
-2. **Instale as dependências**:
+### 2. Instale Dependências
 ```bash
 uv sync
 ```
 
-3. **Configure as variáveis de ambiente**:
-```bash
-cp env.example .env
-```
-
-4. **Edite o arquivo `.env`** com suas configurações:
+### 3. Configure Variáveis de Ambiente
 ```env
 # Application
 ENVIRONMENT=development
 DEBUG=true
-SECRET_KEY=sua-chave-secreta-aqui
+SECRET_KEY=sua-chave-secreta-super-segura-aqui
 
 # Database
 DATABASE_URL=sqlite:///./app.db
 # DATABASE_URL=postgresql://user:pass@localhost:5432/rbac_db
 
-# Redis (Performance)
+# Redis (Performance - Opcional)
 REDIS_ENABLED=false
 REDIS_URL=redis://localhost:6379/0
 
 # Rate Limiting
 RATE_LIMIT_ENABLED=true
-RATE_LIMIT_REQUESTS=100
-RATE_LIMIT_WINDOW=60
 
-# OAuth Providers (opcional)
+# OAuth Providers (Opcional)
 GOOGLE_CLIENT_ID=seu-google-client-id
 GOOGLE_CLIENT_SECRET=seu-google-client-secret
-MICROSOFT_CLIENT_ID=seu-microsoft-client-id
-MICROSOFT_CLIENT_SECRET=seu-microsoft-client-secret
-GITHUB_CLIENT_ID=seu-github-client-id
-GITHUB_CLIENT_SECRET=seu-github-client-secret
 ```
 
-## 🗄️ Inicialização do Banco de Dados
-
-**Inicialize o banco de dados com dados padrão**:
+### 4. Execute a Aplicação
 ```bash
-uv run task init-db
-```
-
-Isso criará:
-- **Permissões padrão**: users:*, roles:*, permissions:*, posts:*, settings:*, logs:view, superadmin:manage
-- **Roles padrão**: superadmin, admin, manager, editor, viewer
-- **Usuário admin**: username=`admin`, password=`admin123`
-
-## 🚀 Execução
-
-### Desenvolvimento
-
-**Inicie o servidor de desenvolvimento**:
-```bash
+# Inicie o backend
 uv run task dev
-```
 
-**Inicie o frontend administrativo**:
-```bash
-# Em outro terminal
+# Em outro terminal - Frontend
 uv run task front
 ```
 
-### Docker (Recomendado)
+## 🗄️ Configuração Inicial
 
-**Para desenvolvimento com Redis**:
+### Banco de Dados
+O banco é inicializado automaticamente na primeira execução com:
+- **Usuário Admin**: `admin` / `admin123`
+- **Permissões padrão**: 22 permissões enterprise
+- **Roles padrão**: superadmin, admin, manager, editor, viewer
+
+### Validação Rápida
+```bash
+# Health check
+curl http://localhost:8000/health
+
+# Login de teste
+curl -X POST http://localhost:8000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}'
+```
+
+## 🔗 URLs Disponíveis
+
+- **🖥️ Frontend Admin**: http://localhost:8501
+- **📊 Backend API**: http://localhost:8000  
+- **📖 API Docs**: http://localhost:8000/docs
+- **⚡ Cache Stats**: http://localhost:8000/cache/stats (admin)
+- **🏥 Health Check**: http://localhost:8000/health
+
+## 🚀 Características Enterprise
+
+### 🔐 Sistema de Autenticação Completo
+
+#### **Autenticação Básica**
+```bash
+# Registro
+POST /auth/register
+
+# Login
+POST /auth/login
+
+# Perfil
+GET /auth/me
+
+# Teste de token
+GET /auth/test-token
+```
+
+#### **2FA TOTP (Enterprise)**
+```bash
+# Status 2FA
+GET /auth/2fa/status
+
+# Configurar 2FA
+POST /auth/2fa/setup
+
+# Habilitar 2FA
+POST /auth/2fa/enable
+
+# Login com 2FA
+POST /auth/2fa/login
+
+# QR Code
+GET /auth/2fa/qr-code
+
+# Códigos de backup
+POST /auth/2fa/regenerate-backup-codes
+```
+
+#### **OAuth Providers**
+```bash
+# Provedores disponíveis
+GET /oauth/providers
+
+# Login OAuth
+GET /oauth/{provider}/login
+
+# Callback
+GET /oauth/{provider}/callback
+```
+
+### 🛡️ Endpoints Protegidos
+
+#### **Profile & Posts**
+```bash
+# Perfil do usuário
+GET /protected/profile
+
+# Listar posts (requer posts:read)
+GET /protected/posts
+
+# Criar post (requer posts:create)  
+POST /protected/posts/create
+
+# Configurações (requer settings:read)
+GET /protected/settings
+```
+
+### 👥 Administração RBAC
+
+#### **Usuários**
+```bash
+GET /admin/users                           # Listar usuários
+GET /admin/users/{user_id}                 # Usuário específico
+POST /admin/users/{user_id}/roles/{role_id} # Atribuir role
+DELETE /admin/users/{user_id}/roles/{role_id} # Remover role
+POST /admin/users/{user_id}/superadmin     # Tornar superadmin
+```
+
+#### **Roles & Permissões**
+```bash
+GET /admin/roles                                    # Listar roles
+POST /admin/roles                                   # Criar role
+PUT /admin/roles/{role_id}                         # Atualizar role
+DELETE /admin/roles/{role_id}                      # Excluir role
+POST /admin/roles/{role_id}/permissions/{perm_id}  # Atribuir permissão
+DELETE /admin/roles/{role_id}/permissions/{perm_id} # Remover permissão
+
+GET /admin/permissions     # Listar permissões
+POST /admin/permissions    # Criar permissão
+```
+
+### 📊 Cache & Performance (Redis)
+
+```bash
+# Estatísticas completas
+GET /cache/stats
+
+# Health do Redis
+GET /cache/health
+
+# Limpar cache
+POST /cache/clear
+
+# Listar chaves
+GET /cache/keys
+
+# Invalidar usuário
+POST /cache/invalidate/user/{user_id}
+
+# Teste de performance
+POST /cache/test
+```
+
+## 📊 Performance Benchmarks
+
+### Com Redis Habilitado
+- **Permission Checks**: ~2ms (vs 50ms database)
+- **User Data Retrieval**: ~1ms (vs 25ms database)  
+- **Cache Hit Rate**: >90% para permissões
+- **Rate Limiting Overhead**: ~0.5ms
+- **2FA Setup**: <500ms para QR code generation
+
+### Rate Limiting por Endpoint
+- **Auth Endpoints**: 10 req/min
+- **Login Endpoints**: 5 req/5min
+- **API Endpoints**: 1000 req/min  
+- **Admin Endpoints**: 50 req/min
+
+## 🐳 Docker & Produção
+
+### Desenvolvimento com Redis
 ```bash
 uv run task docker-dev
 ```
 
-**Para produção**:
-```bash
-uv run task docker-prod
-```
-
-### URLs Disponíveis
-- **Backend API**: `http://localhost:8000`
-- **Frontend Admin**: `http://localhost:8501`
-- **API Docs**: `http://localhost:8000/docs`
-- **Redis Monitor**: `http://localhost:8000/cache/stats` (requer admin)
-
-## 📊 Performance & Monitoring
-
-### Cache Statistics
-```bash
-# Estatísticas de cache (requer token de admin)
-curl -H "Authorization: Bearer TOKEN" http://localhost:8000/cache/stats
-
-# Health check do cache
-curl http://localhost:8000/cache/health
-
-# Teste de performance
-curl -X POST -H "Authorization: Bearer TOKEN" \
-  "http://localhost:8000/cache/test?iterations=1000"
-```
-
-### Rate Limiting Headers
-Todas as respostas incluem headers de rate limiting:
-```
-X-RateLimit-Limit: 100
-X-RateLimit-Remaining: 95
-X-RateLimit-Reset: 1640995200
-```
-
-### Performance Benchmarks
-Com Redis habilitado:
-- **Permission Checks**: ~2ms (vs 50ms database)
-- **User Data**: ~1ms (vs 25ms database)
-- **Cache Hit Rate**: >90% para permissões
-- **Rate Limiting**: ~0.5ms overhead
-
-## 🔐 Endpoints Principais
-
-### Autenticação Básica
-- `POST /auth/register` - Registrar novo usuário
-- `POST /auth/login` - Login com username/password  
-- `POST /auth/token` - Endpoint OAuth2 compatível
-- `GET /auth/me` - Perfil do usuário atual
-- `POST /auth/refresh` - Renovar token de acesso
-
-### OAuth
-- `GET /oauth/{provider}/login` - Iniciar login OAuth
-- `GET /oauth/{provider}/callback` - Callback OAuth
-- `GET /oauth/providers` - Listar provedores configurados
-
-### Administração (requer permissões)
-- `GET /admin/users` - Listar usuários
-- `POST /admin/roles` - Criar role
-- `POST /admin/permissions` - Criar permissão
-- `POST /admin/users/{id}/roles/{role_id}` - Atribuir role
-
-### Cache & Monitoring (admin only)
-- `GET /cache/stats` - Estatísticas de cache
-- `GET /cache/health` - Health check do Redis
-- `POST /cache/clear` - Limpar cache
-- `GET /cache/keys` - Listar chaves de cache
-- `POST /cache/test` - Teste de performance
-
-### Sistema Info
-- `GET /health` - Health check geral
-- `GET /info` - Informações do sistema (dev only)
-
-## 🎭 Sistema RBAC
-
-### Roles Padrão
-
-| Role | Descrição | Permissões |
-|------|-----------|------------|
-| **superadmin** | Super administrador | Todas + superadmin:manage |
-| **admin** | Administrador completo | Todas as permissões exceto superadmin |
-| **manager** | Gerente com acesso limitado | users:read/update, posts:*, settings:read, logs:view |
-| **editor** | Editor de conteúdo | posts:create/read/update |
-| **viewer** | Apenas visualização | posts:read |
-
-### Permissões Disponíveis
-
-#### Básicas
-- **users:** create, read, update, delete, superadmin
-- **roles:** create, read, update, delete
-- **permissions:** create, read, update, delete
-- **posts:** create, read, update, delete
-- **settings:** read, update
-
-#### Sistema
-- **logs:** view
-- **superadmin:** manage
-- **system:** admin
-
-### Cache de Permissões
-O sistema utiliza cache inteligente para permissões:
-- **TTL**: 30 minutos para permissões, 15 minutos para dados de usuário
-- **Invalidação**: Automática quando permissões são alteradas
-- **Fallback**: Database quando Redis indisponível
-- **Performance**: 95%+ cache hit rate
-
-## 🔒 Rate Limiting
-
-### Limites por Endpoint
-
-| Endpoint | Limite | Janela |
-|----------|--------|---------|
-| `/auth/login` | 5 tentativas | 5 minutos |
-| `/auth/register` | 3 tentativas | 5 minutos |
-| `/auth/*` | 10 requests | 1 minuto |
-| `/oauth/*` | 20 requests | 1 minuto |
-| `/admin/*` | 50 requests | 1 minuto |
-| `/api/*` (read) | 1000 requests | 1 minuto |
-| `/api/*` (write) | 100 requests | 1 minuto |
-| **Default** | 100 requests | 1 minuto |
-
-### Rate Limiting Adaptativo
-- **Carga Normal**: Limites padrão
-- **Carga Alta (60%+ memory)**: Limites reduzidos em 30%
-- **Carga Crítica (80%+ memory)**: Limites reduzidos em 50%
-- **Circuit Breaker**: Proteção automática contra falhas em cascata
-
-## 🔧 Configuração Redis
-
-### Desenvolvimento
-```env
-REDIS_ENABLED=true
-REDIS_URL=redis://localhost:6379/0
-```
-
-### Docker
-```yaml
-services:
-  redis:
-    image: redis:7-alpine
-    ports: ["6379:6379"]
-    volumes: ["redis_data:/data"]
-```
-
 ### Produção
-```env
-REDIS_ENABLED=true
-REDIS_URL=redis://redis-server:6379/0
-REDIS_MAX_CONNECTIONS=100
-```
-
-## 🚀 Deploy em Produção
-
-Ver documentação completa em [DEPLOYMENT.md](./DEPLOYMENT.md)
-
-### Docker Compose
 ```bash
-# Build e deploy
 uv run task docker-prod
-
-# Com PostgreSQL e Redis
-docker-compose -f docker-compose.prod.yml up -d
 ```
 
 ### Variáveis de Produção
 ```env
 ENVIRONMENT=production
 DEBUG=false
-DATABASE_URL=postgresql://user:pass@postgres:5432/rbac_prod
+DATABASE_URL=postgresql://user:pass@db:5432/rbac_prod
 REDIS_ENABLED=true
 REDIS_URL=redis://redis:6379/0
-SECRET_KEY=super-secret-production-key
+RATE_LIMIT_ENABLED=true
 ```
 
-## 🔧 Tasks Disponíveis
+## 🔧 Comandos Disponíveis
 
 ```bash
 # Desenvolvimento
-uv run task dev          # Servidor backend
-uv run task front        # Frontend Streamlit  
-uv run task init-db      # Inicializar banco
-
-# Docker
+uv run task dev          # Backend FastAPI
+uv run task front        # Frontend Streamlit
 uv run task docker-dev   # Docker desenvolvimento
 uv run task docker-prod  # Docker produção
-uv run task docker-build # Build das imagens
 
 # Database
+uv run task init-db      # Inicializar banco
 uv run task migrate      # Executar migrações
-uv run task create-migration  # Criar nova migração
 
-# Produção
-uv run task prod         # Servidor produção
+# Testes
+uv run task test         # Executar testes
+uv run task lint         # Linting
+uv run task format       # Formatação
 ```
 
-## 📈 Roadmap
+## 📚 Documentação Completa
 
-### ✅ NÍVEL 1 - PRODUÇÃO READY
-- Configurações avançadas
-- PostgreSQL + Redis support
-- Docker + docker-compose
-- Security hardening
-- Health checks e monitoring
+- **[ENDPOINTS.md](ENDPOINTS.md)** - Documentação completa de endpoints
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Guia enterprise de deployment
+- **[README_FRONTEND.md](README_FRONTEND.md)** - Documentação do frontend
+- **[LOGS_DASHBOARD_README.md](LOGS_DASHBOARD_README.md)** - Dashboard de logs
 
-### ✅ NÍVEL 2 - PERFORMANCE
-- Redis cache distribuído
-- Rate limiting inteligente
-- Connection pooling
-- Cache de permissões
-- Performance monitoring
+## 🔒 Segurança
 
-### 🚧 NÍVEL 3 - FEATURES AVANÇADAS (Em Desenvolvimento)
-- 🔐 2FA (TOTP)
-- 🔑 API Keys para integrações
-- 🔗 Sistema de webhooks
-- 📦 Operações em lote
-- 📄 Templates de roles
+### Recursos de Segurança
+- **JWT Tokens** com expiração configurável
+- **2FA TOTP** enterprise-grade
+- **Rate Limiting** adaptativo por endpoint
+- **CORS** configurável por ambiente
+- **TrustedHost** middleware para produção
+- **Password Hashing** com bcrypt
+- **Secret Encryption** com Fernet
 
-### 🔮 NÍVEL 4 - IA INTEGRATION
-- 🤖 Detecção de anomalias com ML
-- 🧠 Sugestões inteligentes de permissões
-- ⚙️ Auto-provisioning de usuários
-- 📈 Relatórios inteligentes
+### Compliance
+- **OWASP Guidelines** seguidas
+- **Security Headers** configurados
+- **Input Validation** em todos endpoints
+- **SQL Injection** prevenção via ORM
+- **XSS Protection** em frontend
 
-### 🏢 NÍVEL 5 - ENTERPRISE
-- 🔗 SAML/SSO integration
-- 🏢 Active Directory/LDAP
-- 🏢 Multi-tenancy
-- 📱 Mobile app
-- 🏪 Marketplace de plugins
+## 🎯 Roadmap
 
-## 🔍 Testando Permissões
+### Implementado ✅
+- **NÍVEL 1**: Sistema RBAC completo com OAuth
+- **NÍVEL 2**: Performance com Redis e Rate Limiting  
+- **NÍVEL 3**: 2FA TOTP enterprise
 
-1. **Faça login como admin** para obter acesso completo
-2. **Crie novos usuários** via `/auth/register`
-3. **Atribua roles** via `/admin/users/{id}/roles/{role_id}`
-4. **Teste endpoints protegidos** com diferentes usuários
-
-## 🚨 Segurança
-
-- **Tokens JWT** com expiração configurável
-- **Senhas hash** com bcrypt
-- **Validação de permissões** em todas as rotas protegidas
-- **CORS configurado** (ajuste para produção)
-- **Middleware de sessão** para OAuth
+### Próximos Níveis
+- **NÍVEL 4**: IA Integration (ML, anomaly detection)
+- **NÍVEL 5**: Enterprise (SAML/SSO, LDAP, Multi-tenancy)
+- **Features**: API Keys, Webhooks, Batch Operations
 
 ## 🤝 Contribuição
 
 1. Fork o projeto
-2. Crie uma branch para sua feature
-3. Commit suas mudanças
-4. Push para a branch
-5. Abra um Pull Request
+2. Crie feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit mudanças (`git commit -m 'Add AmazingFeature'`)
+4. Push para branch (`git push origin feature/AmazingFeature`)
+5. Abra Pull Request
 
-## 📄 Licença
+## 📝 Licença
 
-Este projeto está sob a licença MIT. Veja o arquivo LICENSE para detalhes.
+Este projeto está licenciado sob a MIT License.
 
 ---
 
-**Desenvolvido com ❤️ usando FastAPI e UV** 
+**FastAPI RBAC** - Sistema Enterprise de Autenticação e Autorização 🚀 

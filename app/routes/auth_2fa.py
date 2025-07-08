@@ -5,7 +5,7 @@ Endpoints para configurar e gerenciar autenticação de 2 fatores
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.database.connection import get_db
+from app.database.base import get_db
 from app.auth.dependencies import get_current_user
 from app.models.user import User
 from app.models.schemas import (
@@ -14,7 +14,7 @@ from app.models.schemas import (
     LoginWith2FARequest, Token
 )
 from app.services.totp_service import totp_service
-from app.auth.token import create_access_token
+from app.auth.utils import create_access_token
 from app.services.cache_service import cache_service
 from typing import Dict, Any
 

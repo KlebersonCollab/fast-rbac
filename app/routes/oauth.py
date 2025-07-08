@@ -10,7 +10,7 @@ from app.auth.utils import create_access_token
 from app.models.schemas import Token
 from app.config.settings import settings
 
-router = APIRouter(prefix="/oauth", tags=["oauth"])
+router = APIRouter(tags=["oauth"])
 
 
 @router.get("/{provider}/login")

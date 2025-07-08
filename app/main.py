@@ -102,6 +102,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
+app.include_router(oauth.router, prefix="/oauth", tags=["OAuth"])
 app.include_router(auth_2fa_router, prefix="/auth/2fa", tags=["2FA Authentication"])
 app.include_router(admin.router, prefix="/admin", tags=["Admin"])
 app.include_router(protected.router, prefix="/protected", tags=["Protected"])

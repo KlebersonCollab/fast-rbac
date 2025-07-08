@@ -24,8 +24,8 @@ class TotpService:
     """Serviço de autenticação TOTP (2FA)"""
     
     def __init__(self):
-        self.issuer = settings.APP_NAME
-        self.key = settings.SECRET_KEY.encode()[:32]  # 32 bytes for Fernet
+        self.issuer = settings.app_name
+        self.key = settings.secret_key.encode()[:32]  # 32 bytes for Fernet
         self.cipher = Fernet(b64encode(self.key))
         
     def _encrypt_secret(self, secret: str) -> str:

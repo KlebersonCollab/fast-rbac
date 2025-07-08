@@ -9,7 +9,7 @@ from app.database.base import get_db
 from app.services.cache_service import cache_service
 from app.services.redis_service import redis_service
 from app.middleware.rate_limiting import get_rate_limit_stats
-from app.auth.dependencies import get_current_user, require_superuser
+from app.auth.dependencies import get_current_user, get_current_superuser
 from app.models.user import User
 from app.config.settings import settings
 
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/cache", tags=["cache"])
 
 @router.get("/stats", response_model=Dict[str, Any])
 async def get_cache_stats(
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(get_current_superuser),
     db: Session = Depends(get_db)
 ):
     """Get comprehensive cache statistics (superuser only)"""
@@ -74,7 +74,7 @@ async def cache_health():
 @router.post("/clear")
 async def clear_cache(
     cache_type: Optional[str] = None,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(get_current_superuser),
     db: Session = Depends(get_db)
 ):
     """Clear cache (superuser only)"""
@@ -136,7 +136,7 @@ async def clear_cache(
 @router.get("/keys")
 async def get_cache_keys(
     pattern: str = "*",
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(get_current_superuser),
     db: Session = Depends(get_db)
 ):
     """Get cache keys matching pattern (superuser only)"""
@@ -160,7 +160,7 @@ async def get_cache_keys(
 @router.get("/key/{key}")
 async def get_cache_value(
     key: str,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(get_current_superuser),
     db: Session = Depends(get_db)
 ):
     """Get value for specific cache key (superuser only)"""
@@ -191,7 +191,7 @@ async def get_cache_value(
 @router.delete("/key/{key}")
 async def delete_cache_key(
     key: str,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(get_current_superuser),
     db: Session = Depends(get_db)
 ):
     """Delete specific cache key (superuser only)"""
@@ -202,14 +202,11 @@ async def delete_cache_key(
                 detail="Redis not enabled"
             )
         
-        existed = await redis_service.exists(key)
         success = await redis_service.delete(key)
         
         return {
-            "key": key,
-            "existed": existed,
-            "deleted": success,
-            "message": "Key deleted successfully" if success else "Key not found or deletion failed"
+            "success": success,
+            "message": f"Key '{key}' deleted" if success else f"Failed to delete key '{key}'"
         }
         
     except Exception as e:
@@ -222,10 +219,10 @@ async def delete_cache_key(
 @router.post("/invalidate/user/{user_id}")
 async def invalidate_user_cache(
     user_id: int,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(get_current_superuser),
     db: Session = Depends(get_db)
 ):
-    """Invalidate cache for specific user (superuser only)"""
+    """Invalidate all cache for specific user (superuser only)"""
     try:
         if not settings.redis_enabled:
             raise HTTPException(
@@ -236,9 +233,8 @@ async def invalidate_user_cache(
         success = await cache_service.invalidate_user_cache(user_id)
         
         return {
-            "user_id": user_id,
             "success": success,
-            "message": "User cache invalidated successfully" if success else "Failed to invalidate user cache"
+            "message": f"User {user_id} cache invalidated" if success else f"Failed to invalidate user {user_id} cache"
         }
         
     except Exception as e:
@@ -251,7 +247,7 @@ async def invalidate_user_cache(
 @router.post("/test")
 async def test_cache_performance(
     iterations: int = 100,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(get_current_superuser),
     db: Session = Depends(get_db)
 ):
     """Test cache performance (superuser only)"""
@@ -263,43 +259,40 @@ async def test_cache_performance(
             )
         
         import time
-        import asyncio
         
-        # Test write performance
+        # Test Redis SET operations
         start_time = time.time()
-        write_tasks = []
+        tasks = []
         for i in range(iterations):
-            task = redis_service.set(f"test_key_{i}", f"test_value_{i}", 60)
-            write_tasks.append(task)
+            tasks.append(redis_service.set(f"test_key_{i}", f"test_value_{i}", 300))
         
-        await asyncio.gather(*write_tasks)
-        write_time = time.time() - start_time
+        await asyncio.gather(*tasks)
+        set_time = time.time() - start_time
         
-        # Test read performance
+        # Test Redis GET operations
         start_time = time.time()
-        read_tasks = []
+        tasks = []
         for i in range(iterations):
-            task = redis_service.get(f"test_key_{i}")
-            read_tasks.append(task)
+            tasks.append(redis_service.get(f"test_key_{i}"))
         
-        await asyncio.gather(*read_tasks)
-        read_time = time.time() - start_time
+        results = await asyncio.gather(*tasks)
+        get_time = time.time() - start_time
         
         # Clean up test keys
-        cleanup_tasks = []
+        tasks = []
         for i in range(iterations):
-            task = redis_service.delete(f"test_key_{i}")
-            cleanup_tasks.append(task)
-        
-        await asyncio.gather(*cleanup_tasks)
+            tasks.append(redis_service.delete(f"test_key_{i}"))
+        await asyncio.gather(*tasks)
         
         return {
             "iterations": iterations,
-            "write_time": round(write_time, 4),
-            "read_time": round(read_time, 4),
-            "write_ops_per_second": round(iterations / write_time, 2),
-            "read_ops_per_second": round(iterations / read_time, 2),
-            "total_time": round(write_time + read_time, 4)
+            "set_time": round(set_time, 4),
+            "get_time": round(get_time, 4),
+            "total_time": round(set_time + get_time, 4),
+            "avg_set_time": round(set_time / iterations * 1000, 2),  # ms
+            "avg_get_time": round(get_time / iterations * 1000, 2),  # ms
+            "operations_per_second": round((iterations * 2) / (set_time + get_time), 2),
+            "successful_operations": len([r for r in results if r is not None])
         }
         
     except Exception as e:
