@@ -172,3 +172,39 @@ def confirm_action(message: str, key: str) -> bool:
                 st.session_state[f"confirm_{key}"] = False
                 st.rerun()
         return False
+
+
+# Aliases para as funções esperadas pelas views do nível 5
+def show_success(message: str):
+    """Show success message - alias for compatibility"""
+    st.success(message)
+
+
+def show_error(message: str):
+    """Show error message - alias for compatibility"""
+    st.error(message)
+
+
+def show_warning(message: str):
+    """Show warning message - alias for compatibility"""
+    st.warning(message)
+
+
+def convert_timestamp_with_timezone(timestamp_str: str) -> str:
+    """Convert timestamp with timezone handling"""
+    if not timestamp_str:
+        return "N/A"
+    
+    try:
+        import pandas as pd
+        # Use pandas para parsing robusto de timestamps ISO8601
+        dt = pd.to_datetime(timestamp_str, format='ISO8601')
+        return dt.strftime("%d/%m/%Y %H:%M")
+    except Exception:
+        try:
+            # Fallback para parsing manual
+            clean_timestamp = timestamp_str.replace("Z", "+00:00")
+            dt = datetime.fromisoformat(clean_timestamp)
+            return dt.strftime("%d/%m/%Y %H:%M")
+        except Exception:
+            return timestamp_str

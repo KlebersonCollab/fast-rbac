@@ -160,9 +160,9 @@ app.include_router(admin.router, prefix="/admin")
 app.include_router(protected.router, prefix="/protected")
 
 # Include NÍVEL 5 - Enterprise routers (AGORA INTEGRADOS AO FRONTEND!)
-app.include_router(api_keys_router, prefix="/api-keys")
-app.include_router(tenants_router, prefix="/tenants")
-app.include_router(webhooks_router, prefix="/webhooks")
+app.include_router(api_keys_router)
+app.include_router(tenants_router)  
+app.include_router(webhooks_router)
 
 # Include outros routers ATIVOS
 app.include_router(auth_2fa_router, prefix="/auth/2fa")

@@ -11,17 +11,17 @@ from front.config.logging import (
 from front.config.settings import settings
 from front.services.auth_service import auth_service
 from front.utils.helpers import check_session_timeout, init_session_state
+
+# Level 5 Enterprise Views
+from front.views.api_keys import render_api_keys_view
 from front.views.dashboard import render_dashboard
 from front.views.examples import render_posts_page, render_settings_page
 from front.views.login import render_login
 from front.views.logs_dashboard import show_logs_dashboard
 from front.views.permissions import render_permissions_page
 from front.views.roles import render_roles_page
+from front.views.tenants import render_tenants_view
 from front.views.users import render_users_page
-
-# Level 5 Enterprise Views
-from front.views.api_keys import render_api_keys_view
-from front.views.tenants import render_tenants_view  
 from front.views.webhooks import render_webhooks_view
 
 

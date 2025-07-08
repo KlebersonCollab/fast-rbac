@@ -98,10 +98,12 @@ def render_sidebar():
         # Enterprise Features (Level 5)
         st.markdown("---")
         st.markdown("### 🏢 Enterprise (Nível 5)")
-        
+
         # Verificar se usuário tem permissões para funcionalidades enterprise
-        is_admin = user.get('is_superuser', False) or 'admin' in [r.lower() for r in auth_service.get_user_roles()]
-        
+        is_admin = user.get("is_superuser", False) or "admin" in [
+            r.lower() for r in auth_service.get_user_roles()
+        ]
+
         if is_admin:
             if st.button("🔑 API Keys", use_container_width=True):
                 st.session_state.page = "API Keys"
