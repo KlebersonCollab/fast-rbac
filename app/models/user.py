@@ -49,15 +49,24 @@ class User(Base):
     phone_number = Column(String, nullable=True)
     timezone = Column(String, default="UTC")
     
+    # Multi-tenancy
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
+    
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
     # Relationships
     roles = relationship("Role", secondary=user_roles, back_populates="users")
+    tenant = relationship("Tenant", back_populates="users")
+    api_keys = relationship("APIKey", back_populates="user", cascade="all, delete-orphan")
 
     def has_permission(self, permission_name: str) -> bool:
         """Check if user has a specific permission"""
+        # Superusers have all permissions
+        if self.is_superuser:
+            return True
+            
         for role in self.roles:
             for permission in role.permissions:
                 if permission.name == permission_name:
