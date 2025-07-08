@@ -41,12 +41,19 @@ Documentação completa das práticas de segurança implementadas no sistema Fas
 - ✅ **Anti-Replay**: Proteção contra ataques de replay
 - ✅ **Circuit Breaker**: Proteção contra falhas em cascata
 - ✅ **Adaptive Security**: Ajuste automático de segurança
+- ✅ **Compliance**: Conformidade com padrões
 
 #### **NÍVEL 4 - Enterprise**
 - ✅ **OAuth2**: Integração com provedores externos
 - ✅ **Audit Logging**: Logs completos de auditoria
 - ✅ **Monitoring**: Monitoramento em tempo real
 - ✅ **Compliance**: Conformidade com padrões
+
+#### **NÍVEL 5 - Multi-Tenant**
+- ✅ **Isolamento de Dados**: Queries filtradas por `tenant_id`
+- ✅ **Escopo de Token**: JWT contém `tenant_id` para reforçar o isolamento
+- ✅ **Acesso de Superadmin**: Superusuários podem acessar todos os tenants
+- ✅ **Segregação de Recursos**: API Keys e Webhooks são específicos do tenant
 
 ---
 
@@ -68,6 +75,7 @@ ALGORITHM = "HS256"
 - **Tokens de Refresh**: Expiração longa (7 dias)
 - **Chave Secreta**: Mínimo 256 bits, gerada aleatoriamente
 - **Algoritmo**: HS256 (recomendado para aplicações internas)
+- **Payload com Tenant**: O `tenant_id` é incluído no payload do token para garantir que todas as operações subsequentes sejam corretamente escopadas para o tenant do usuário.
 
 ### **Sistema RBAC (Role-Based Access Control)**
 
@@ -483,10 +491,15 @@ async def create_user(user_data: UserCreate, current_user: User = Depends(get_cu
     if not await check_permission("users:create", current_user):
         raise HTTPException(403, "Permissão negada")
     
-    # Validar dados
-    validated_data = user_data.dict()
+    # Validar e escopar a criação para o tenant do usuário
+    if not user_data.tenant_id:
+        user_data.tenant_id = current_user.tenant_id
+
+    if user_data.tenant_id != current_user.tenant_id and not current_user.is_superadmin:
+        raise HTTPException(403, "Você só pode criar usuários no seu próprio tenant.")
     
     # Hash da senha
+    validated_data = user_data.dict()
     validated_data["password"] = hash_password(validated_data["password"])
     
     # Criar usuário

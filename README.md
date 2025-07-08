@@ -1,6 +1,6 @@
 # FastAPI RBAC - Sistema Enterprise de Autenticação e Autorização
 
-Uma aplicação **FastAPI enterprise-grade** com sistema RBAC completo, autenticação 2FA, múltiplos provedores OAuth, cache Redis, rate limiting e interface administrativa Streamlit.
+Uma aplicação **FastAPI enterprise-grade** com sistema RBAC completo, autenticação 2FA, **arquitetura multi-tenant**, múltiplos provedores OAuth, cache Redis, rate limiting e interface administrativa Streamlit.
 
 ## 🚀 Características
 
@@ -46,6 +46,13 @@ Uma aplicação **FastAPI enterprise-grade** com sistema RBAC completo, autentic
 - ✅ **Performance Testing**: Testes de performance integrados
 - ✅ **Health Checks**: Monitoramento de saúde do sistema
 - ✅ **Logs Dashboard**: Dashboard de logs do sistema
+
+### 🏢 **Arquitetura Multi-Tenant (NÍVEL 4)**
+- ✅ **Isolamento de Dados por Tenant**: Segurança e privacidade garantidas entre tenants.
+- ✅ **Gerenciamento de Tenants**: Endpoints dedicados para criar, gerenciar e configurar tenants.
+- ✅ **Gerenciamento de API Keys por Tenant**: Crie e gerencie chaves de API com escopo por tenant.
+- ✅ **Gerenciamento de Webhooks por Tenant**: Configure webhooks para notificar eventos específicos do tenant.
+- ✅ **Onboarding Simplificado**: Usuários criam seus próprios tenants durante o registro.
 
 ### 🗄️ **Database & Infrastructure**
 - ✅ **SQLAlchemy ORM**: PostgreSQL/SQLite support
@@ -249,6 +256,66 @@ POST /cache/invalidate/user/{user_id}
 POST /cache/test
 ```
 
+## 🏢 Gerenciamento de Tenants
+
+```bash
+# Listar/criar tenants
+GET /tenants
+POST /tenants
+
+# Gerenciar tenant específico
+GET /tenants/{tenant_id}
+PUT /tenants/{tenant_id}
+DELETE /tenants/{tenant_id}
+
+# Ações administrativas
+POST /tenants/{tenant_id}/verify
+POST /tenants/{tenant_id}/activate
+POST /tenants/{tenant_id}/suspend
+
+# Gerenciar usuários e configurações
+GET /tenants/{tenant_id}/users
+POST /tenants/{tenant_id}/users/{user_id}
+GET /tenants/{tenant_id}/settings
+PUT /tenants/{tenant_id}/settings
+```
+
+### 🔑 Gerenciamento de API Keys (por Tenant)
+
+```bash
+# Listar/criar chaves de API
+GET /api-keys
+POST /api-keys
+
+# Gerenciar chave específica
+GET /api-keys/{api_key_id}
+PUT /api-keys/{api_key_id}
+DELETE /api-keys/{api_key_id}
+
+# Ações e estatísticas
+POST /api-keys/{api_key_id}/rotate
+GET /api-keys/{api_key_id}/usage
+GET /api-keys/{api_key_id}/stats
+```
+
+### 🔗 Gerenciamento de Webhooks (por Tenant)
+
+```bash
+# Listar/criar webhooks
+GET /webhooks
+POST /webhooks
+
+# Gerenciar webhook específico
+GET /webhooks/{webhook_id}
+PUT /webhooks/{webhook_id}
+DELETE /webhooks/{webhook_id}
+
+# Ações e estatísticas
+POST /webhooks/{webhook_id}/test
+GET /webhooks/{webhook_id}/deliveries
+GET /webhooks/{webhook_id}/logs
+```
+
 ## 📊 Performance Benchmarks
 
 ### Com Redis Habilitado
@@ -334,13 +401,14 @@ uv run task format       # Formatação
 
 ### Implementado ✅
 - **NÍVEL 1**: Sistema RBAC completo com OAuth
-- **NÍVEL 2**: Performance com Redis e Rate Limiting  
+- **NÍVEL 2**: Performance com Redis e Rate Limiting
 - **NÍVEL 3**: 2FA TOTP enterprise
+- **NÍVEL 4**: Arquitetura Multi-Tenant com isolamento de dados
 
 ### Próximos Níveis
-- **NÍVEL 4**: IA Integration (ML, anomaly detection)
-- **NÍVEL 5**: Enterprise (SAML/SSO, LDAP, Multi-tenancy)
-- **Features**: API Keys, Webhooks, Batch Operations
+- **NÍVEL 5**: IA Integration (ML, anomaly detection)
+- **NÍVEL 6**: Enterprise Features Avançadas (SAML/SSO, LDAP)
+- **Features**: API Keys, Webhooks, Batch Operations (Refinar implementação)
 
 ## 🤝 Contribuição
 

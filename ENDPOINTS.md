@@ -54,6 +54,44 @@
 - `GET /admin/permissions` - Listar permissões
 - `POST /admin/permissions` - Criar permissão
 
+### 🏢 **Tenants (/tenants)**
+- `POST /` - Criar novo tenant
+- `GET /` - Listar tenants (próprio ou todos para admin)
+- `GET /my` - Obter o tenant do usuário logado
+- `GET /{tenant_id}` - Obter tenant específico
+- `PUT /{tenant_id}` - Atualizar tenant
+- `DELETE /{tenant_id}` - Deletar tenant (admin)
+- `POST /{tenant_id}/verify` - Verificar tenant (admin)
+- `POST /{tenant_id}/suspend` - Suspender tenant (admin)
+- `POST /{tenant_id}/activate` - Ativar tenant (admin)
+- `GET /{tenant_id}/users` - Listar usuários do tenant
+- `POST /{tenant_id}/users/{user_id}` - Adicionar usuário ao tenant
+- `DELETE /{tenant_id}/users/{user_id}` - Remover usuário do tenant
+- `GET /{tenant_id}/settings` - Obter configurações do tenant
+- `PUT /{tenant_id}/settings` - Atualizar configurações do tenant
+- `GET /{tenant_id}/stats` - Obter estatísticas do tenant
+
+### 🔑 **API Keys (/api-keys)** *(Escopo por Tenant)*
+- `POST /` - Criar chave de API
+- `GET /` - Listar chaves de API
+- `GET /{api_key_id}` - Obter chave de API
+- `PUT /{api_key_id}` - Atualizar chave de API
+- `DELETE /{api_key_id}` - Deletar chave de API
+- `POST /{api_key_id}/rotate` - Rotacionar chave de API
+- `GET /{api_key_id}/usage` - Ver uso da chave
+- `GET /{api_key_id}/stats` - Ver estatísticas da chave
+
+### 🔗 **Webhooks (/webhooks)** *(Escopo por Tenant)*
+- `POST /` - Criar webhook
+- `GET /` - Listar webhooks
+- `GET /{webhook_id}` - Obter webhook
+- `PUT /{webhook_id}` - Atualizar webhook
+- `DELETE /{webhook_id}` - Deletar webhook
+- `POST /{webhook_id}/test` - Testar webhook
+- `GET /{webhook_id}/deliveries` - Ver entregas
+- `GET /{webhook_id}/logs` - Ver logs
+- `GET /events/types` - Listar tipos de eventos
+
 ### 📊 **Cache (/cache)** *(Disponível quando Redis habilitado)*
 - `GET /cache/health` - Status do Redis
 - `GET /cache/stats` - Estatísticas do cache

@@ -2,6 +2,43 @@
 
 Todas as mudanças importantes deste projeto serão documentadas neste arquivo.
 
+## [2.0.0] - 2025-07-08 - **ARQUITETURA MULTI-TENANT**
+
+### 🚀 **FUNCIONALIDADES PRINCIPAIS**
+
+#### 🏢 **Arquitetura Multi-Tenant Completa**
+- **Isolamento de Dados**: Cada Tenant opera em um ambiente isolado, garantindo que usuários de um tenant não possam acessar dados de outro.
+- **Associação de Recursos**: Modelos `User`, `APIKey`, e `Webhook` agora estão diretamente associados a um `tenant_id` obrigatório.
+- **Acesso Global para Superusuários**: Superusuários mantêm a capacidade de visualizar e gerenciar dados de todos os tenants.
+- **JWT com Tenant ID**: O token JWT agora inclui o `tenant_id`, permitindo que o backend filtre dados eficientemente por tenant.
+
+#### ✨ **Novo Fluxo de Registro e Onboarding**
+- **Criação de Tenant no Registro**: Novos usuários agora criam seu próprio Tenant durante o processo de registro, especificando um "Nome da Empresa".
+- **Transação Atômica**: A criação de um novo usuário e seu respectivo tenant é uma operação transacional, garantindo a consistência dos dados.
+
+#### 🔧 **Novos Endpoints de Gerenciamento**
+- **Endpoints de Tenants (`/tenants`)**: CRUD completo para gerenciar tenants, visualizar usuários, estatísticas de uso, e gerenciar configurações específicas.
+- **Endpoints de API Keys (`/api-keys`)**: Gerenciamento completo de chaves de API, com escopo por tenant. Inclui rotação de chaves e visualização de uso.
+- **Endpoints de Webhooks (`/webhooks`)**: Gerenciamento completo de webhooks, com escopo por tenant. Inclui testes de entrega e visualização de logs.
+
+### 🔧 **MELHORIAS TÉCNICAS**
+
+#### **Banco de Dados**
+- **Migração Alembic**: Nova migração para adicionar a coluna `tenant_id` e garantir a integridade referencial.
+- **Dados Iniciais**: Script `init_data.py` atualizado para criar um "Default Tenant" e associá-lo ao usuário `admin`.
+
+#### **Backend**
+- **Refatoração de Serviços**: Todos os serviços (`user_service`, `api_key_service`, `webhook_service`, etc.) foram refatorados para filtrar consultas pelo `tenant_id` do usuário autenticado.
+- **Schemas Pydantic**: Novos schemas para suportar as operações de multi-tenancy (`TenantCreate`, `UserRegister`, etc.).
+
+#### **Frontend**
+- **Registro de Tenant**: Formulário de registro atualizado para incluir o nome do tenant.
+- **Isolamento de Views**: Páginas de API Keys, Webhooks e Usuários agora exibem apenas os dados pertencentes ao tenant do usuário logado.
+- **API Client**: Atualizado para lidar com o novo fluxo de autenticação e registro.
+
+#### **Testes**
+- **Testes de Integração**: Novos testes E2E (`test_multitenancy.py`) para validar o isolamento de dados entre diferentes tenants, garantindo que a lógica de separação está funcionando corretamente.
+
 ## [1.0.0] - 2024-01-20 - **VERSÃO ENTERPRISE**
 
 ### 🚀 **FUNCIONALIDADES PRINCIPAIS**

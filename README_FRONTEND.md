@@ -27,6 +27,21 @@ Interface administrativa completa para o sistema de controle de acesso baseado e
 - **Estatísticas detalhadas** por provedor e papel
 - **Exportação para CSV**
 
+### 🏛️ Gerenciamento de Tenants (Admin)
+- **Visualização completa** de todos os tenants do sistema.
+- **Ações de moderação**: Ativar, suspender e verificar tenants.
+- **Visualização de usuários** e estatísticas por tenant.
+
+### 🔑 Gerenciamento de API Keys (por Tenant)
+- **CRUD completo** para chaves de API dentro do tenant do usuário.
+- **Geração e rotação** de chaves seguras.
+- **Monitoramento de uso** e datas de expiração.
+
+### 🔗 Gerenciamento de Webhooks (por Tenant)
+- **CRUD completo** para webhooks.
+- **Visualização de logs de entrega** e status.
+- **Interface para enviar eventos de teste**.
+
 ### 🎭 Gerenciamento de Papéis
 - **CRUD completo** de papéis
 - **Gestão de permissões** por papel
@@ -96,6 +111,9 @@ front/
 │   ├── users.py             # Gerenciar usuários
 │   ├── roles.py             # Gerenciar papéis
 │   ├── permissions.py       # Gerenciar permissões
+│   ├── tenants.py           # Gerenciar tenants (Admin)
+│   ├── api_keys.py          # Gerenciar chaves de API
+│   ├── webhooks.py          # Gerenciar webhooks
 │   └── examples.py          # Páginas de exemplo
 ├── components/
 │   ├── auth.py              # Componentes de autenticação
@@ -167,6 +185,7 @@ def create_user_form():
 - **Sucesso** - Confirmações de ações realizadas
 - **Erro** - Mensagens claras de problemas
 - **Vazio** - Estados quando não há dados
+- **Isolamento de Dados**: A interface garante que usuários normais vejam apenas dados (API Keys, Webhooks, etc.) do seu próprio tenant.
 - **Sem permissão** - Feedback claro de acesso negado
 
 ## 🔧 Configurações
@@ -210,6 +229,15 @@ class FrontendSettings:
 - **Edição:** Edição inline com gerenciamento de papéis
 - **Estatísticas:** Análise por provedor, papel e registros recentes
 - **Exportação:** Download de CSV com todos os dados
+
+### 🏛️ Tenants (Admin)
+- **Visualização e Gestão**: Interface para administrar todos os tenants.
+- **Ações Rápidas**: Botões para verificar, suspender e reativar tenants.
+
+### 🔑 API Keys e 🔗 Webhooks
+- **Interface por Tenant**: Cada usuário gerencia seus próprios recursos.
+- **Visualização Clara**: Listas com status, datas e ações rápidas.
+- **Formulários Intuitivos**: Para criação e edição.
 
 ### 🎭 Papéis
 - **Lista:** Visualização com permissões associadas
@@ -275,7 +303,7 @@ O sistema vem com dados pré-configurados:
 
 1. **Autenticação OAuth completa** - Implementar fluxo completo
 2. **Auditoria e logs** - Página de logs de atividades
-3. **Configurações avançadas** - Interface para configurações do sistema
+3. **Configurações avançadas do Tenant** - Interface para configurações específicas do tenant
 4. **Relatórios** - Dashboards com mais métricas
 5. **Importação/Exportação** - Backup e restore de configurações
 6. **Temas** - Modo escuro e personalizações

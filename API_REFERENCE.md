@@ -15,6 +15,9 @@ Documentação técnica completa da API do sistema FastAPI RBAC Enterprise com a
 9. [Códigos de Erro](#códigos-de-erro)
 10. [Rate Limiting](#rate-limiting)
 11. [Exemplos de Uso](#exemplos-de-uso)
+12. [Endpoints de Tenants](#endpoints-de-tenants)
+13. [Endpoints de API Keys](#endpoints-de-api-keys)
+14. [Endpoints de Webhooks](#endpoints-de-webhooks)
 
 ---
 
@@ -52,7 +55,7 @@ superadmin:manage
 ## 🔑 Endpoints de Autenticação
 
 ### **POST /auth/register**
-Registrar novo usuário
+Registrar novo usuário e criar um novo tenant
 
 **Request:**
 ```json
@@ -60,7 +63,8 @@ Registrar novo usuário
   "username": "novousuario",
   "email": "usuario@example.com",
   "password": "senha123",
-  "full_name": "Nome Completo"
+  "full_name": "Nome Completo",
+  "tenant_name": "Minha Empresa"
 }
 ```
 
@@ -72,7 +76,8 @@ Registrar novo usuário
   "email": "usuario@example.com",
   "full_name": "Nome Completo",
   "is_active": true,
-  "created_at": "2024-01-20T10:00:00"
+  "created_at": "2024-01-20T10:00:00",
+  "tenant_id": 1
 }
 ```
 
@@ -98,7 +103,8 @@ Fazer login
     "id": 1,
     "username": "admin",
     "email": "admin@example.com",
-    "is_2fa_enabled": false
+    "is_2fa_enabled": false,
+    "tenant_id": 1
   }
 }
 ```
@@ -122,7 +128,8 @@ Authorization: Bearer <token>
   "is_2fa_enabled": false,
   "roles": ["superadmin"],
   "permissions": ["superadmin:manage"],
-  "created_at": "2024-01-20T10:00:00"
+  "created_at": "2024-01-20T10:00:00",
+  "tenant_id": 1
 }
 ```
 
@@ -140,9 +147,69 @@ Authorization: Bearer <token>
   "valid": true,
   "user_id": 1,
   "username": "admin",
+  "tenant_id": 1,
   "expires_at": "2024-01-20T12:00:00"
 }
 ```
+
+---
+
+## 🏢 Endpoints de Tenants
+
+Endpoints para gerenciamento de tenants, usuários e configurações. O acesso é restrito ao tenant do usuário, exceto para superusuários.
+
+### **POST /tenants/**
+Criar um novo tenant.
+
+**Request:**
+```json
+{
+  "name": "Novo Tenant",
+  "plan_type": "basic"
+}
+```
+
+### **GET /tenants/**
+Listar tenants. Superusuários veem todos; usuários normais veem apenas o seu.
+
+### **GET /tenants/my**
+Obter o tenant do usuário logado.
+
+### **GET /tenants/{tenant_id}**
+Obter um tenant específico.
+
+### **PUT /tenants/{tenant_id}**
+Atualizar um tenant.
+
+### **DELETE /tenants/{tenant_id}**
+Deletar um tenant (apenas superusuários).
+
+### **POST /tenants/{tenant_id}/verify**
+Verificar um tenant (apenas superusuários).
+
+### **POST /tenants/{tenant_id}/suspend**
+Suspender um tenant (apenas superusuários).
+
+### **POST /tenants/{tenant_id}/activate**
+Ativar um tenant (apenas superusuários).
+
+### **GET /tenants/{tenant_id}/users**
+Listar usuários de um tenant.
+
+### **POST /tenants/{tenant_id}/users/{user_id}**
+Adicionar um usuário a um tenant.
+
+### **DELETE /tenants/{tenant_id}/users/{user_id}**
+Remover um usuário de um tenant.
+
+### **GET /tenants/{tenant_id}/settings**
+Obter configurações de um tenant.
+
+### **PUT /tenants/{tenant_id}/settings**
+Atualizar configurações de um tenant.
+
+### **GET /tenants/{tenant_id}/stats**
+Obter estatísticas de uso de um tenant.
 
 ---
 
@@ -743,6 +810,7 @@ Testar performance do cache
   "full_name": "string",
   "is_active": "boolean",
   "is_2fa_enabled": "boolean",
+  "tenant_id": "integer",
   "roles": ["string"],
   "permissions": ["string"],
   "created_at": "datetime",
@@ -782,6 +850,45 @@ Testar performance do cache
   "token_type": "bearer",
   "expires_in": "integer",
   "user": "User"
+}
+```
+
+### **Tenant**
+```json
+{
+  "id": "integer",
+  "name": "string",
+  "is_active": "boolean",
+  "is_verified": "boolean",
+  "owner_id": "integer",
+  "created_at": "datetime"
+}
+```
+
+### **APIKey**
+```json
+{
+  "id": "integer",
+  "name": "string",
+  "is_active": "boolean",
+  "tenant_id": "integer",
+  "user_id": "integer",
+  "expires_at": "datetime",
+  "created_at": "datetime"
+}
+```
+
+### **Webhook**
+```json
+{
+  "id": "integer",
+  "name": "string",
+  "url": "string",
+  "is_active": "boolean",
+  "event_types": ["string"],
+  "tenant_id": "integer",
+  "user_id": "integer",
+  "created_at": "datetime"
 }
 ```
 

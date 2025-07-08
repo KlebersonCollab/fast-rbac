@@ -84,47 +84,6 @@ cp env.production.example .env.production
 
 # Gerar chave secreta segura
 python3 -c "import secrets; print('SECRET_KEY=' + secrets.token_urlsafe(32))" >> .env.production
-```
-
-**Configuração completa `.env.production`:**
-
-```env
-# ===================================
-# FASTAPI RBAC - ENTERPRISE PRODUCTION
-# ===================================
-
-# Application
-ENVIRONMENT=production
-DEBUG=false
-LOG_LEVEL=INFO
-APP_NAME=FastAPI RBAC Enterprise
-APP_VERSION=1.0.0
-
-# Security (CRÍTICO - ALTERE TODOS!)
-SECRET_KEY=your-generated-32-byte-secret-key
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-REFRESH_TOKEN_EXPIRE_DAYS=7
-
-# Database PostgreSQL (Production)
-DATABASE_URL=postgresql://rbac_user:StrongPassword123!@postgres:5432/rbac_prod
-POSTGRES_USER=rbac_user
-POSTGRES_PASSWORD=StrongPassword123!
-POSTGRES_DB=rbac_prod
-
-# Redis Cache & Sessions (PERFORMANCE LAYER)
-REDIS_ENABLED=true
-REDIS_URL=redis://:RedisPassword123!@redis:6379/0
-REDIS_PASSWORD=RedisPassword123!
-REDIS_MAX_CONNECTIONS=100
-REDIS_TIMEOUT=30
-
-# 2FA TOTP Configuration (ENTERPRISE SECURITY)
-TOTP_ISSUER=FastAPI RBAC Enterprise
-TOTP_WINDOW=1
-TOTP_DIGITS=6
-TOTP_PERIOD=30
-BACKUP_CODES_COUNT=10
 
 # Rate Limiting (SECURITY & PERFORMANCE)
 RATE_LIMIT_ENABLED=true
@@ -136,6 +95,11 @@ RATE_LIMIT_API_REQUESTS=1000
 RATE_LIMIT_API_WINDOW=60
 RATE_LIMIT_ADMIN_REQUESTS=50
 RATE_LIMIT_ADMIN_WINDOW=60
+
+# Default Tenant and Admin User
+DEFAULT_TENANT_NAME="Default Tenant"
+DEFAULT_ADMIN_EMAIL="admin@example.com"
+DEFAULT_ADMIN_PASSWORD="admin123"
 
 # CORS (Configure para seus domínios)
 ALLOWED_ORIGINS=https://your-domain.com,https://admin.your-domain.com
@@ -337,6 +301,9 @@ O sistema inclui autenticação de dois fatores enterprise com:
 - **QR Code Generation**: Setup automático
 - **Backup Codes**: 10 códigos criptografados
 - **Anti-Replay Protection**: Prevenção de ataques
+- **TOTP Encryption Key**: `TOTP_ENCRYPTION_KEY` para criptografar os secrets 2FA.
+- **Tenant Padrão**: `DEFAULT_TENANT_NAME` para o nome do tenant inicial criado.
+- **Admin Padrão**: `DEFAULT_ADMIN_EMAIL`, `DEFAULT_ADMIN_PASSWORD` para o primeiro usuário.
 
 ### **2. Endpoints 2FA Configurados**
 
@@ -558,6 +525,9 @@ docker-compose -f docker-compose.prod.yml logs -f backend
 
 # Executar migrações (primeira vez)
 docker-compose -f docker-compose.prod.yml exec backend uv run alembic upgrade head
+
+# Inicializar dados (cria tenant e admin padrão)
+docker-compose -f docker-compose.prod.yml exec backend uv run python -m app.database.init_data
 ```
 
 ---

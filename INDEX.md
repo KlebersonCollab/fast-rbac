@@ -29,6 +29,11 @@
 - Correções e melhorias
 - Roadmap futuro
 
+### **[NÍVEL 5 - Enterprise Features](CHANGELOG.md#nível-5---enterprise-features)**
+- 🏢 **Multi-tenancy**: Suporte a múltiplos tenants
+- 🔑 **API Keys**: Sistema de chaves de API
+- 🔗 **Webhooks**: Sistema de webhooks
+
 ---
 
 ## 🔧 **Documentação Técnica**
